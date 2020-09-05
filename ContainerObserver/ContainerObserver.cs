@@ -131,10 +131,11 @@ namespace FabricObserver.Observers
                 monitorTimer.Reset();
             }
 
-            await ReportAsync(token).ConfigureAwait(true);
-
             runTimer.Stop();
             RunDuration = runTimer.Elapsed;
+          
+            await ReportAsync(token).ConfigureAwait(true);
+
             LastRunDateTime = DateTime.Now;
         }
 
