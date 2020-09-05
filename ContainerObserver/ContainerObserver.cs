@@ -93,9 +93,20 @@ namespace FabricObserver.Observers
                 Stopwatch monitorTimer = Stopwatch.StartNew();
 
                 var id = container.ID;
+                var cpuId = $"{id}_cpu";
+                var memId = $"{id}_mem";
 
-                allCpuData.Add(new FabricResourceUsageData<ulong>("CpuUse", $"{id}_cpu"));
-                allMemData.Add(new FabricResourceUsageData<ulong>("MemUseMB", $"{id}_mem"));
+                // Don't add new fruds if they already exists. These objects live across Observer runs.
+                // Note: Their Data members will be cleared by ProcessDataReportHealth.
+                if (!allCpuData.Any(frud => frud.Id == cpuId))
+                {
+                    allCpuData.Add(new FabricResourceUsageData<ulong>("CpuUse", cpuId));
+                }
+
+                if (!allMemData.Any(frud => frud.Id == memId))
+                {
+                    allMemData.Add(new FabricResourceUsageData<ulong>("MemUseMB", memId));
+                }
 
                 var containerParams = new ContainerStatsParameters
                 {
