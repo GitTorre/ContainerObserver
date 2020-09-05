@@ -86,6 +86,16 @@ namespace FabricObserver.Observers
                     Limit = 5,
                 });
 
+            if (allCpuData == null)
+            {
+                allCpuData = new List<FabricResourceUsageData<ulong>>();
+            }
+
+            if (allMemData == null)
+            {
+                allMemData = new List<FabricResourceUsageData<ulong>>();
+            }
+
             foreach (var container in containers)
             {
                 token.ThrowIfCancellationRequested();
@@ -94,18 +104,7 @@ namespace FabricObserver.Observers
 
                 var id = container.ID;
 
-                if (allCpuData == null)
-                {
-                    allCpuData = new List<FabricResourceUsageData<ulong>>();
-                }
-
                 allCpuData.Add(new FabricResourceUsageData<ulong>("CpuUse", $"{id}_cpu"));
-
-                if (allMemData == null)
-                {
-                    allMemData = new List<FabricResourceUsageData<ulong>>();
-                }
-
                 allMemData.Add(new FabricResourceUsageData<ulong>("MemUse", $"{id}_mem"));
 
                 var containerParams = new ContainerStatsParameters
