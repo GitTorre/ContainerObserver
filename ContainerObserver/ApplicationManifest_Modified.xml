@@ -42,7 +42,7 @@
     <Parameter Name="DiskObserverMonitorDuration" DefaultValue="00:00:05" />
     <Parameter Name="FabricSystemObserverMonitorDuration" DefaultValue="00:00:10" />
     <Parameter Name="NodeObserverMonitorDuration" DefaultValue="00:00:30" />
-    <Parameter Name="ContainerObserverMonitorDuration" DefaultValue="00:00:30" />
+    <Parameter Name="ContainerObserverMonitorDuration" DefaultValue="00:00:15" />
     <!-- Observer Run Intervals (TimeSpan format, e.g., 0.00:00:00) -->
     <Parameter Name="AppObserverRunInterval" DefaultValue="" />
     <Parameter Name="CertificateObserverRunInterval" DefaultValue="1.00:00:00" />

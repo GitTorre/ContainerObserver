@@ -6,6 +6,8 @@ using Docker.DotNet;
 using Docker.DotNet.Models;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Fabric;
 
 namespace FabricObserver.Observers
 {
@@ -43,8 +45,8 @@ namespace FabricObserver.Observers
             get; set;
         }
 
-        private FabricResourceUsageData<ulong> cpuData;
-        private FabricResourceUsageData<ulong> memData;
+        private List<FabricResourceUsageData<ulong>> allCpuData;
+        private List<FabricResourceUsageData<ulong>> allMemData;
         private readonly Progress<ContainerStatsResponse> progress;
 
         public ContainerObserver()
@@ -53,79 +55,112 @@ namespace FabricObserver.Observers
             progress.ProgressChanged += Progress_ProgressChanged;
         }
 
+        // OsbserverManager passes in a special token to ObserveAsync and ReportAsync that enables it to stop this observer outside of
+        // of the SF runtime, but this token will also cancel when the runtime cancels the main token.
         public override async Task ObserveAsync(CancellationToken token)
         {
             // If set, this observer will only run during the supplied interval.
             // See Settings.xml, CertificateObserverConfiguration section, RunInterval parameter for an example.
-            if (this.RunInterval > TimeSpan.MinValue
-                && DateTime.Now.Subtract(this.LastRunDateTime) < this.RunInterval)
+            if (RunInterval > TimeSpan.MinValue
+                && DateTime.Now.Subtract(LastRunDateTime) < RunInterval)
             {
                 return;
             }
 
+            Stopwatch runTimer = Stopwatch.StartNew();
             SetThresholdSFromConfiguration();
 
-            DockerClient client = new DockerClientConfiguration().CreateClient();
+            /*var codepackages = await FabricClientInstance.QueryManager.GetDeployedCodePackageListAsync(
+                NodeName,
+                new Uri("fabric:/ARRType")).ConfigureAwait(false);
+
+            var codePackages = codepackages.Where(c => c.HostType == HostType.ContainerHost);*/
+            
+            using DockerClient client = new DockerClientConfiguration().CreateClient();
+
+            // This takes a Filter Dictionary, not sure how to use it...
+            // TODO: Figure out the best way to map app service instance to container id (container logs?).
             IList<ContainerListResponse> containers = await client.Containers.ListContainersAsync(
                 new ContainersListParameters()
                 {
-                    Limit = 1,
+                    Limit = 5,
                 });
 
-            if (cpuData == null)
+            foreach (var container in containers)
             {
-                cpuData = new FabricResourceUsageData<ulong>("CpuUse", $"{containers[0].ID}_cpu", DataCapacity, UseCircularBuffer);
+                token.ThrowIfCancellationRequested();
+
+                Stopwatch monitorTimer = Stopwatch.StartNew();
+
+                var id = container.ID;
+
+                if (allCpuData == null)
+                {
+                    allCpuData = new List<FabricResourceUsageData<ulong>>();
+                }
+
+                allCpuData.Add(new FabricResourceUsageData<ulong>("CpuUse", $"{id}_cpu"));
+
+                if (allMemData == null)
+                {
+                    allMemData = new List<FabricResourceUsageData<ulong>>();
+                }
+
+                allMemData.Add(new FabricResourceUsageData<ulong>("MemUse", $"{id}_mem"));
+
+                var containerParams = new ContainerStatsParameters
+                {
+                    Stream = false,
+                };
+
+                // This is how long each measurement sequence for each container can last.
+                TimeSpan duration = TimeSpan.FromSeconds(15);
+
+                if (ConfigurationSettings.MonitorDuration > TimeSpan.MinValue)
+                {
+                    duration = ConfigurationSettings.MonitorDuration;
+                }
+
+                while (monitorTimer.Elapsed < duration)
+                {
+                    await client.Containers.GetContainerStatsAsync(id, containerParams, progress, token);
+                    await Task.Delay(250);
+                }
+
+                monitorTimer.Stop();
+                monitorTimer.Reset();
             }
-
-            if (memData == null)
-            {
-                memData = new FabricResourceUsageData<ulong>("MemUse", $"{containers[0].ID}_mem", DataCapacity, UseCircularBuffer);
-            }
-
-            var containerParams = new ContainerStatsParameters
-            {
-                Stream = false,
-            };
-
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            TimeSpan duration = TimeSpan.FromSeconds(30);
-
-            if (ConfigurationSettings.MonitorDuration > TimeSpan.MinValue)
-            {
-                duration = ConfigurationSettings.MonitorDuration;
-            }
-
-            while (stopwatch.Elapsed < duration)
-            {
-                await client.Containers.GetContainerStatsAsync(containers[0].ID, containerParams, progress, token);
-                await Task.Delay(250);
-            }
-
-            stopwatch.Stop();
-            RunDuration = stopwatch.Elapsed;
-            stopwatch.Reset();
 
             await ReportAsync(token).ConfigureAwait(true);
+
+            runTimer.Stop();
+            RunDuration = runTimer.Elapsed;
             LastRunDateTime = DateTime.Now;
         }
 
-        public override async Task ReportAsync(CancellationToken token)
+        public override Task ReportAsync(CancellationToken token)
         {
-            var timeToLiveWarning = this.SetHealthReportTimeToLive();
+            var timeToLiveWarning = SetHealthReportTimeToLive();
 
-            this.ProcessResourceDataReportHealth(
-                   cpuData,
-                   this.CpuErrorUsageThresholdPct,
-                   this.CpuWarningUsageThresholdPct,
-                   timeToLiveWarning);
+            foreach (var cpudata in allCpuData)
+            {
+                ProcessResourceDataReportHealth(
+                       cpudata,
+                       CpuErrorUsageThresholdPct,
+                       CpuWarningUsageThresholdPct,
+                       timeToLiveWarning);
+            }
 
-            this.ProcessResourceDataReportHealth(
-                   memData,
-                   this.MemErrorUsageThresholdMb,
-                   this.MemWarningUsageThresholdMb,
-                   timeToLiveWarning);
+            foreach (var memdata in allMemData)
+            {
+                ProcessResourceDataReportHealth(
+                       memdata,
+                       MemErrorUsageThresholdMb,
+                       MemWarningUsageThresholdMb,
+                       timeToLiveWarning);
+            }
 
-            await Task.Delay(42);
+            return Task.FromResult(1);
         }
 
         private void Progress_ProgressChanged(object sender, ContainerStatsResponse e)
@@ -133,65 +168,72 @@ namespace FabricObserver.Observers
             // not sure what this value means. assuming percentage of cpu time (it's a ulong, so, not a double... :-).
             // since you are scoped to 1 core, you don't need the per-core list.
             var cpu = e.CPUStats.CPUUsage.TotalUsage;
-            // if this comes back as bytes, then you need to convert to MB.
+            
+            // if this comes back as bytes, then you need to convert to MB.= or whatever maps to your configuration
+            // value for memory in use.
             var mem = e.MemoryStats.PrivateWorkingSet / 1024 / 1024;
-            cpuData?.Data.Add(cpu);
-            memData?.Data.Add(mem);
+
+            allCpuData.Where(f => f.Id == $"{e.ID}_cpu").FirstOrDefault().Data.Add(cpu);
+            allMemData.Where(f => f.Id == $"{e.ID}_mem").FirstOrDefault().Data.Add(mem);
         }
 
         private void SetThresholdSFromConfiguration()
         {
             /* Error thresholds */
 
-            this.Token.ThrowIfCancellationRequested();
+            // This is the main SF runtime token, which will be cancelled if, say, this node goes down or
+            // this service instance goes down.
+            Token.ThrowIfCancellationRequested();
 
-            var cpuError = this.GetSettingParameterValue(
-                this.ConfigurationSectionName,
+            // This observer uses the same config parameter names as NodeObserver, thus the use of 
+            // ObserverConstants.NodeObserverCpuWarningPct, etc..
+            var cpuError = GetSettingParameterValue(
+                ConfigurationSectionName,
                 ObserverConstants.NodeObserverCpuErrorLimitPct);
 
             if (!string.IsNullOrEmpty(cpuError) && ulong.TryParse(cpuError, out ulong cpuErrorUsageThresholdPct))
             {
-                this.CpuErrorUsageThresholdPct = cpuErrorUsageThresholdPct;
+                CpuErrorUsageThresholdPct = cpuErrorUsageThresholdPct;
             }
 
-            var memError = this.GetSettingParameterValue(
-                this.ConfigurationSectionName,
+            var memError = GetSettingParameterValue(
+                ConfigurationSectionName,
                 ObserverConstants.NodeObserverMemoryErrorLimitMb);
 
             if (!string.IsNullOrEmpty(memError) && ulong.TryParse(memError, out ulong memErrorUsageThresholdMb))
             {
-                this.MemErrorUsageThresholdMb = memErrorUsageThresholdMb;
+                MemErrorUsageThresholdMb = memErrorUsageThresholdMb;
             }
 
-            var errMemPercentUsed = this.GetSettingParameterValue(
-                this.ConfigurationSectionName,
+            var errMemPercentUsed = GetSettingParameterValue(
+                ConfigurationSectionName,
                 ObserverConstants.NodeObserverMemoryUsePercentError);
 
             if (!string.IsNullOrEmpty(errMemPercentUsed) && ulong.TryParse(errMemPercentUsed, out ulong memoryPercentUsedErrorThreshold))
             {
-                this.MemoryErrorLimitPercent = memoryPercentUsedErrorThreshold;
+                MemoryErrorLimitPercent = memoryPercentUsedErrorThreshold;
             }
 
             /* Warning thresholds */
 
-            this.Token.ThrowIfCancellationRequested();
+            Token.ThrowIfCancellationRequested();
 
-            var cpuWarn = this.GetSettingParameterValue(
-                this.ConfigurationSectionName,
+            var cpuWarn = GetSettingParameterValue(
+                ConfigurationSectionName,
                 ObserverConstants.NodeObserverCpuWarningLimitPct);
 
             if (!string.IsNullOrEmpty(cpuWarn) && ulong.TryParse(cpuWarn, out ulong cpuWarningUsageThresholdPct))
             {
-                this.CpuWarningUsageThresholdPct = cpuWarningUsageThresholdPct;
+                CpuWarningUsageThresholdPct = cpuWarningUsageThresholdPct;
             }
 
-            var memWarn = this.GetSettingParameterValue(
-                this.ConfigurationSectionName,
+            var memWarn = GetSettingParameterValue(
+                ConfigurationSectionName,
                 ObserverConstants.NodeObserverMemoryWarningLimitMb);
 
             if (!string.IsNullOrEmpty(memWarn) && ulong.TryParse(memWarn, out ulong memWarningUsageThresholdMb))
             {
-                this.MemWarningUsageThresholdMb = memWarningUsageThresholdMb;
+                MemWarningUsageThresholdMb = memWarningUsageThresholdMb;
             }
         }
     }
