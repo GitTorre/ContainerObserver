@@ -1,19 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <Platforms>AnyCPU;x64</Platforms>
+    <RuntimeIdentifiers>linux-x64;win-x64</RuntimeIdentifiers>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>FabricObserver.Observers</RootNamespace>
+    <AssemblyName>ContainerObserver</AssemblyName>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Remove="ServiceManifest.xml" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Docker.DotNet" Version="3.125.4" />
     <PackageReference Include="FabricObserver.Windows.SelfContained" Version="3.0.3" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="3.1.7" />
     <PackageReference Include="Microsoft.ServiceFabric" Version="7.1.456" />
   </ItemGroup>
-
 </Project>
