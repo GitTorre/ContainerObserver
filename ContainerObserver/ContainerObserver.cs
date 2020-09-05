@@ -19,7 +19,7 @@ namespace FabricObserver.Observers
             get; set;
         }
 
-        public ulong MemErrorUsageThresholdMb
+        public ulong MemErrorUsageThresholdMB
         {
             get; set;
         }
@@ -30,17 +30,7 @@ namespace FabricObserver.Observers
             get; set;
         }
 
-        public ulong MemWarningUsageThresholdMb
-        {
-            get; set;
-        }
-
-        public ulong MemoryErrorLimitPercent
-        {
-            get; set;
-        }
-
-        public ulong MemoryWarningLimitPercent
+        public ulong MemWarningUsageThresholdMB
         {
             get; set;
         }
@@ -105,7 +95,7 @@ namespace FabricObserver.Observers
                 var id = container.ID;
 
                 allCpuData.Add(new FabricResourceUsageData<ulong>("CpuUse", $"{id}_cpu"));
-                allMemData.Add(new FabricResourceUsageData<ulong>("MemUse", $"{id}_mem"));
+                allMemData.Add(new FabricResourceUsageData<ulong>("MemUseMB", $"{id}_mem"));
 
                 var containerParams = new ContainerStatsParameters
                 {
@@ -154,8 +144,8 @@ namespace FabricObserver.Observers
             {
                 ProcessResourceDataReportHealth(
                        memdata,
-                       MemErrorUsageThresholdMb,
-                       MemWarningUsageThresholdMb,
+                       MemErrorUsageThresholdMB,
+                       MemWarningUsageThresholdMB,
                        timeToLiveWarning);
             }
 
@@ -201,16 +191,7 @@ namespace FabricObserver.Observers
 
             if (!string.IsNullOrEmpty(memError) && ulong.TryParse(memError, out ulong memErrorUsageThresholdMb))
             {
-                MemErrorUsageThresholdMb = memErrorUsageThresholdMb;
-            }
-
-            var errMemPercentUsed = GetSettingParameterValue(
-                ConfigurationSectionName,
-                ObserverConstants.NodeObserverMemoryUsePercentError);
-
-            if (!string.IsNullOrEmpty(errMemPercentUsed) && ulong.TryParse(errMemPercentUsed, out ulong memoryPercentUsedErrorThreshold))
-            {
-                MemoryErrorLimitPercent = memoryPercentUsedErrorThreshold;
+                MemErrorUsageThresholdMB = memErrorUsageThresholdMb;
             }
 
             /* Warning thresholds */
@@ -232,7 +213,7 @@ namespace FabricObserver.Observers
 
             if (!string.IsNullOrEmpty(memWarn) && ulong.TryParse(memWarn, out ulong memWarningUsageThresholdMb))
             {
-                MemWarningUsageThresholdMb = memWarningUsageThresholdMb;
+                MemWarningUsageThresholdMB = memWarningUsageThresholdMb;
             }
         }
     }
