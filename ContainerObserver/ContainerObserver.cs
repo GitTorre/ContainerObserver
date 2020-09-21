@@ -60,21 +60,22 @@ namespace FabricObserver.Observers
             Stopwatch runTimer = Stopwatch.StartNew();
             SetThresholdSFromConfiguration();
 
-            /*var codepackages = await FabricClientInstance.QueryManager.GetDeployedCodePackageListAsync(
-                NodeName,
-                new Uri("fabric:/ARRType")).ConfigureAwait(false);
+            // Get deployed network codepackages (deployed code packages in a container network).
+            var codepackages = await FabricClientInstance.NetworkManager.GetDeployedNetworkCodePackageListAsync(
+                new System.Fabric.Description.DeployedNetworkCodePackageQueryDescription
+                {
+                    NodeName = NodeName,
+                    ApplicationNameFilter = new Uri("fabric:/ARRType"),
+                });
 
-            var codePackages = codepackages.Where(c => c.HostType == HostType.ContainerHost);*/
-            
             using DockerClient client = new DockerClientConfiguration().CreateClient();
 
             // This takes a Filter Dictionary, not sure how to use it...
-            // TODO: Figure out the best way to map app service instance to container id (container logs?).
-            IList<ContainerListResponse> containers = await client.Containers.ListContainersAsync(
+            /*IList<ContainerListResponse> containers = await client.Containers.ListContainersAsync(
                 new ContainersListParameters()
                 {
                     Limit = 5,
-                });
+                });*/
 
             if (allCpuData == null)
             {
@@ -86,13 +87,13 @@ namespace FabricObserver.Observers
                 allMemData = new List<FabricResourceUsageData<ulong>>();
             }
 
-            foreach (var container in containers)
+            foreach (var codepackage in codepackages)
             {
                 token.ThrowIfCancellationRequested();
 
                 Stopwatch monitorTimer = Stopwatch.StartNew();
 
-                var id = container.ID;
+                var id = codepackage.ContainerId;
                 var cpuId = $"{id}_cpu";
                 var memId = $"{id}_mem";
 
