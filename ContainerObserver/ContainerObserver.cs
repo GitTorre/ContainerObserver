@@ -14,7 +14,7 @@ namespace FabricObserver.Observers
     public class ContainerObserver : ObserverBase
     {
         // Error thresholds
-        public ulong CpuErrorUsageThresholdPct
+        public double CpuErrorUsageThresholdPct
         {
             get; set;
         }
@@ -25,7 +25,7 @@ namespace FabricObserver.Observers
         }
 
         // Warning thresholds
-        public ulong CpuWarningUsageThresholdPct
+        public double CpuWarningUsageThresholdPct
         {
             get; set;
         }
