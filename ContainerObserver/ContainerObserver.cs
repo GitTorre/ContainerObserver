@@ -35,8 +35,8 @@ namespace FabricObserver.Observers
             get; set;
         }
 
-        private List<FabricResourceUsageData<ulong>> allCpuData;
-        private List<FabricResourceUsageData<ulong>> allMemData;
+        private List<FabricResourceUsageData<double>> allCpuDataPercentage;
+        private List<FabricResourceUsageData<ulong>> allMemDataMB;
         private readonly Progress<ContainerStatsResponse> progress;
 
         public ContainerObserver()
@@ -77,14 +77,14 @@ namespace FabricObserver.Observers
                     Limit = 5,
                 });*/
 
-            if (allCpuData == null)
+            if (allCpuDataPercentage == null)
             {
-                allCpuData = new List<FabricResourceUsageData<ulong>>();
+                allCpuDataPercentage = new List<FabricResourceUsageData<double>>();
             }
 
-            if (allMemData == null)
+            if (allMemDataMB == null)
             {
-                allMemData = new List<FabricResourceUsageData<ulong>>();
+                allMemDataMB = new List<FabricResourceUsageData<ulong>>();
             }
 
             foreach (var codepackage in codepackages)
@@ -99,14 +99,14 @@ namespace FabricObserver.Observers
 
                 // Don't add new fruds if they already exists. These objects live across Observer runs.
                 // Note: Their Data members will be cleared by ProcessDataReportHealth.
-                if (!allCpuData.Any(frud => frud.Id == cpuId))
+                if (!allCpuDataPercentage.Any(frud => frud.Id == cpuId))
                 {
-                    allCpuData.Add(new FabricResourceUsageData<ulong>("CpuUse", cpuId));
+                    allCpuDataPercentage.Add(new FabricResourceUsageData<double>("CpuUsePercent", cpuId));
                 }
 
-                if (!allMemData.Any(frud => frud.Id == memId))
+                if (!allMemDataMB.Any(frud => frud.Id == memId))
                 {
-                    allMemData.Add(new FabricResourceUsageData<ulong>("MemUseMB", memId));
+                    allMemDataMB.Add(new FabricResourceUsageData<ulong>("MemUseMB", memId));
                 }
 
                 var containerParams = new ContainerStatsParameters
@@ -144,7 +144,7 @@ namespace FabricObserver.Observers
         {
             var timeToLiveWarning = SetHealthReportTimeToLive();
 
-            foreach (var cpudata in allCpuData)
+            foreach (var cpudata in allCpuDataPercentage)
             {
                 ProcessResourceDataReportHealth(
                        cpudata,
@@ -153,7 +153,7 @@ namespace FabricObserver.Observers
                        timeToLiveWarning);
             }
 
-            foreach (var memdata in allMemData)
+            foreach (var memdata in allMemDataMB)
             {
                 ProcessResourceDataReportHealth(
                        memdata,
@@ -165,18 +165,32 @@ namespace FabricObserver.Observers
             return Task.FromResult(1);
         }
 
+        // NOTE: I have not tested this.
         private void Progress_ProgressChanged(object sender, ContainerStatsResponse e)
         {
-            // not sure what this value means. assuming percentage of cpu time (it's a ulong, so, not a double... :-).
-            // since you are scoped to 1 core, you don't need the per-core list.
-            var cpu = e.CPUStats.CPUUsage.TotalUsage;
-            
-            // if this comes back as bytes, then you need to convert to MB.= or whatever maps to your configuration
-            // value for memory in use.
+            // https://github.com/moby/moby/blob/eb131c5383db8cac633919f82abad86c99bffbe5/cli/command/container/stats_helpers.go#L175
+            // 1 Tick = 100 nanoseconds.
+            uint possIntervals = (uint)e.Read.Subtract(e.PreRead).Ticks / 100; // Start with number of ns intervals.
+            possIntervals /= 100; // Convert to number of 100ns intervals.
+            possIntervals *= e.NumProcs; // Multiply by the number of processors.
+
+            // Intervals used: pre = *previous* value, which is required to determine the percentage of cpu used by 
+            // this container instance at the time when this observation is made.
+            ulong intervalsUsed = e.CPUStats.CPUUsage.TotalUsage - e.PreCPUStats.CPUUsage.TotalUsage;
+            double cpuPercent = 0.00;
+
+            // Avoid divide-by-zero.
+            if (possIntervals > 0)
+            {
+                cpuPercent = intervalsUsed / possIntervals * 100.0;
+            }
+  
+            // if this comes back as bytes (I *think* it does), then you need to convert to MB.= or whatever maps to your configuration
+            // value for memory in use. If it doesn't, then remove converstion from bytes to MB below..
             var mem = e.MemoryStats.PrivateWorkingSet / 1024 / 1024;
 
-            allCpuData.Where(f => f.Id == $"{e.ID}_cpu").FirstOrDefault().Data.Add(cpu);
-            allMemData.Where(f => f.Id == $"{e.ID}_mem").FirstOrDefault().Data.Add(mem);
+            allCpuDataPercentage.Where(f => f.Id == $"{e.ID}_cpu").FirstOrDefault().Data.Add(cpuPercent);
+            allMemDataMB.Where(f => f.Id == $"{e.ID}_mem").FirstOrDefault().Data.Add(mem);
         }
 
         private void SetThresholdSFromConfiguration()
