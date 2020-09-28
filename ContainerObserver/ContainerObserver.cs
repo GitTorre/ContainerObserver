@@ -7,7 +7,6 @@ using Docker.DotNet.Models;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Fabric;
 
 namespace FabricObserver.Observers
 {
@@ -41,8 +40,8 @@ namespace FabricObserver.Observers
 
         public ContainerObserver()
         {
-            progress = new Progress<ContainerStatsResponse>();
-            progress.ProgressChanged += Progress_ProgressChanged;
+            this.progress = new Progress<ContainerStatsResponse>();
+            this.progress.ProgressChanged += Progress_ProgressChanged;
         }
 
         // OsbserverManager passes in a special token to ObserveAsync and ReportAsync that enables it to stop this observer outside of
@@ -246,7 +245,11 @@ namespace FabricObserver.Observers
 
         protected override void Dispose(bool disposing)
         {
-            progress.ProgressChanged -= Progress_ProgressChanged;
+            if (this.progress != null)
+            {
+                this.progress.ProgressChanged -= Progress_ProgressChanged;
+            }
+
             base.Dispose(disposing);
         }
     }
