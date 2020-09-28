@@ -8,7 +8,7 @@ namespace FabricObserver.Observers
     {
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddScoped(typeof(ObserverBase), typeof(ContainerObserver));
+            _ = services.AddScoped(typeof(ObserverBase), typeof(ContainerObserver));
         }
     }
 }
