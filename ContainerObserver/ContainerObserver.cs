@@ -37,7 +37,7 @@ namespace FabricObserver.Observers
 
         private List<FabricResourceUsageData<double>> allCpuDataPercentage;
         private List<FabricResourceUsageData<ulong>> allMemDataMB;
-        private readonly Progress<ContainerStatsResponse> progress;
+        private Progress<ContainerStatsResponse> progress;
 
         public ContainerObserver()
         {
@@ -242,6 +242,12 @@ namespace FabricObserver.Observers
             {
                 MemWarningUsageThresholdMB = memWarningUsageThresholdMb;
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            progress.ProgressChanged -= Progress_ProgressChanged;
+            base.Dispose(disposing);
         }
     }
 }
