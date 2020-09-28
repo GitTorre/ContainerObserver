@@ -8,8 +8,19 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Docker.DotNet" Version="3.125.4" />
-    <PackageReference Include="FabricObserver.Windows.SelfContained" Version="3.0.4" />
+    <PackageReference Include="FabricObserver.Windows.SelfContained" Version="3.0.5" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="3.1.8" />
     <PackageReference Include="Microsoft.ServiceFabric" Version="7.1.458" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="ApplicationManifest_Modified.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Settings.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy &quot;$(OutDir)ApplicationManifest_Modified.xml&quot; &quot;$(OutDir)\ApplicationManifest.xml&quot;&#xD;&#xA;copy &quot;$(OutDir)Settings.xml&quot; &quot;$(OutDir)FabricObserverPkg\Config&quot;" />
+  </Target>
 </Project>
