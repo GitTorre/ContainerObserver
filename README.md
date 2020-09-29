@@ -5,28 +5,12 @@ This is a sample implementation of a [FabricObserver](https://aka.ms/sf/fabricob
 ### FabricObserver Plugin Model  
 
 #### Steps 
-
+- Clone repo.
 - Install [.Net Core 3.1](https://dotnet.microsoft.com/download/dotnet-core/3.1).
-- Navigate to top level directory (where FabricObserver.sln lives, for example) then,
-
-For now, you can use the related nugets (choose target OS, framework-dependent or self-contained nupkg file) available [here](https://github.com/microsoft/service-fabric-observer/releases). 
-
-Download the appropriate nupkg to your local machine and update your local nuget.config to include the location of the file on disk.
-
-Create a new .NET Core 3.1 library project, install the nupkg you need for your target OS (Windows in this case.):  
-
-	Framework-dependent = Requires that .NET Core 3.1 is already installed on target machine.
-
-	Self-contained = Includes all the binaries necessary for running .NET Core 3.1 applications on target machine withoout having to install .NET Core 3.1 Runtime.
-
-- Update the related CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step).
-
+- Download and install the Windows-SelfContained nupkg file from the [FabricObserver repo's Releases section](https://github.com/microsoft/service-fabric-observer/releases). 
+- Update the ContainerObserver CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.
 - Build the ContainerObserver project.
-
 - Deploy FabricObserver to your cluster. Your new observer will be managed and run just like any other observer.
-
-#### Note: Due to the complexity of unloading plugins at runtime, in order to add or update a plugin, you must redeploy FabricObserver. The problem is easier to solve for new plugins, as this could be done via a Data configuration update, but we have not added support for this yet.
-
 
 The core idea is that writing an observer plugin is an equivalent experience to writing one inside the FabricObserver project itself.
 
