@@ -94,26 +94,9 @@ namespace FabricObserver.Observers
 }
 ```
 
-When you build your plugin as a .NET Core 3.1 library, copy the dll file into the Data/Plugins folder inside your build output directory. E.g., YourObserverPlugin\bin\Debug\netcoreapp3.1. In fact, this directory will contain what is effectively an sfpkg file and folder structure:  
+When you build your plugin, the dll file will be copied into the Data/Plugins folder inside your build output directory. E.g., ContainerObserver\bin\Release\netcoreapp3.1. The ContainerObserver-specific Settings.xml and ApplicationManifest_Modified.xml files will be placed (and renamed) into the correct locations. In fact, this directory will contain what is effectively an sfpkg file and folder structure:  
 ```
-[sourcedir]\SAMPLEOBSERVERPLUGIN\BIN\DEBUG\NETCOREAPP3.1  
-│   ApplicationManifest.xml  
-|   ContainerObserver.dll  
-|   ContainerObserver.pdb  
-|   ContainerObserver.deps.json  
-│  
-└───FabricObserverPkg  
-        Code  
-        Config  
-        Data  
-        ServiceManifest.xml        
-```
-Update Config/Settings.xml with your new observer config settings. This repo already has one for ContainerObserver plugin. Just follow that pattern and add any other configuration parameters for your observer. If you want to configure your observer via an Application Parameter update after it's been deployed, you will need to add the override parameters to FabricObserverApp/ApplicationPackageRoot/ApplicationManifest.xml. You will see several examples of how to do this in that
-file. 
-
-You can deploy using the contents of your build out directory - just remove the pdb, json, dll files from the top level directory, so it looks like this:
-```
-[sourcedir]\ContainerObserver\BIN\DEBUG\NETCOREAPP3.1  
+[sourcedir]\ContainerObserver\bin\release\netcoreapp3.1  
 │   ApplicationManifest.xml  
 │  
 └───FabricObserverPkg  
@@ -123,14 +106,17 @@ You can deploy using the contents of your build out directory - just remove the 
         ServiceManifest.xml        
 ```
 
-### Deploy FO from your plugin build folder (assuming you build FO on Windows - the target can be Windows or Linux, of course.): 
+### You are now ready to deploy FabricObserver from your plugin build output folder.
 
 * Open an Admin Powershell console.
 * Connect to your cluster.
-* Set a $path variable to your deployment content
-* Copy bits to server
-* Register application type
-* Create new instance of FO, which contains your observer!
+* Set a $path variable to your deployment content (full path of your build output top level directory).
+* Copy bits to server.
+* Register application type.
+* Create new instance of FabricObserver, which includes your custom observer, which will be run and managed like all other observers.  
+
+Example script: 
+
 ```Powershell
 $path = "[sourcedir]\ContainerObserver\bin\debug\netcoreapp3.1"
 Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3 -TimeoutSec 1800
