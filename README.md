@@ -43,7 +43,7 @@ using FabricObserver.Observers.Utilities.Telemetry;
 
 namespace FabricObserver.Observers
 {
-    public class MyObserver : ObserverBase
+    public class ContainerObserver : ObserverBase
     {
         public SampleNewObserver()
         {
@@ -72,29 +72,29 @@ custom observer to do whatever the underlying platform affords.
 
 As you can see in this project, there are two key files:
 
-1. Your observer implementation.
+1. ContainerObserver implementation.
 2. The IFabricObserverStartup implementation.
 
-For 2., it's designed to be a trivial - and required - impl:
+For 2., it's designed to be a trivial - and required - implementation:
 
 ``` C#
-using FabricObserver.Observers.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
+using FabricObserver.Observers;
 
-[assembly: FabricObserver.FabricObserverStartup(typeof(FabricObserver.Observers.[Name of this class, e.g., MyObserverStartup]))]
+[assembly: FabricObserver.FabricObserverStartup(typeof(ContainerObserver))]
 namespace FabricObserver.Observers
 {
-    public class MyObserverStartup : IFabricObserverStartup
+    public class ContainerObserverStartup : IFabricObserverStartup
     {
         public void ConfigureServices(IServiceCollection services)
         {
-            _ = services.AddScoped(typeof(ObserverBase), typeof([Name of the class that holds your observer impl. E.g., MyObserver]));
+            _ = services.AddScoped(typeof(ObserverBase), typeof(ContainerObserver));
         }
     }
 }
 ```
 
-When you build your plugin, all files will be placed into the correct locations in the output directory. E.g., C:\Users\me\source\repos\ContainerObserver\ContainerObserver\bin\Release\netcoreapp3.1. ContainerObserver.dll, Settings.xml, and ApplicationManifest_Modified.xml files will be placed (and renamed in the case of ApplicationManifest) into the correct locations. In fact, this directory will contain what is effectively an sfpkg file and folder structure:  
+When you build the ContainerObserver plugin project, all files will be placed into the correct locations in the output directory. E.g., C:\Users\me\source\repos\ContainerObserver\ContainerObserver\bin\Release\netcoreapp3.1. ContainerObserver.dll, Settings.xml, and ApplicationManifest_Modified.xml files will be placed (and renamed in the case of ApplicationManifest) into the correct locations. In fact, this directory will contain what is effectively an sfpkg file and folder structure:  
 ```
 [sourcedir]\ContainerObserver\bin\release\netcoreapp3.1  
 │   ApplicationManifest.xml  
