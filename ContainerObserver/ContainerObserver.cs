@@ -60,6 +60,8 @@ namespace FabricObserver.Observers
             SetThresholdSFromConfiguration();
 
             // Get deployed network codepackages (deployed code packages in a container network).
+            // NOTE: This API probably won't work. We will have to figure out another way to get container id given
+            // code package...
             var codepackages = await FabricClientInstance.NetworkManager.GetDeployedNetworkCodePackageListAsync(
                 new System.Fabric.Description.DeployedNetworkCodePackageQueryDescription
                 {
