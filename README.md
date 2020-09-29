@@ -18,14 +18,12 @@ Create a new .NET Core 3.1 library project, install the nupkg you need for your 
 	Framework-dependent = Requires that .NET Core 3.1 is already installed on target machine.
 
 	Self-contained = Includes all the binaries necessary for running .NET Core 3.1 applications on target machine withoout having to install .NET Core 3.1 Runtime.
-
-- Write your observer plugin!
-
-- Build your observer project, drop the output dll into the Data/Plugins folder in FabricObserver/PackageRoot.
+	
+- Build the ContainerObserver project.
 
 - Add a new config section for your observer in FabricObserver/PackageRoot/Config/Settings.xml (see example at bottom of that file)
    Update ApplicationManifest.xml with Parameters if you want to support Application Parameter Updates for your plugin.
-   (Look at both FabricObserver/PackageRoot/Config/Settings.xml and FabricObserverApp/ApplicationPackageRoot/ApplicationManifest.xml for several examples of how to do this.)
+   (Look at both FabricObserver/PackageRoot/Config/Settings.xml and FabricObserverApp/ApplicationPackageRoot/ApplicationManifest.xml for several examples of how to do this.) These files are already written for this project.
 
 - Deploy FabricObserver to your cluster. Your new observer will be managed and run just like any other observer.
 
