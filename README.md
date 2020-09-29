@@ -94,7 +94,7 @@ namespace FabricObserver.Observers
 }
 ```
 
-When you build your plugin, the dll file will be copied into the Data/Plugins folder inside your build output directory. E.g., C:\Users\me\source\repos\ContainerObserver\ContainerObserver\bin\Release\netcoreapp3.1. The ContainerObserver-specific Settings.xml and ApplicationManifest_Modified.xml files will be placed (and renamed) into the correct locations. In fact, this directory will contain what is effectively an sfpkg file and folder structure:  
+When you build your plugin, all files will be placed into the correct locations in the output directory. E.g., C:\Users\me\source\repos\ContainerObserver\ContainerObserver\bin\Release\netcoreapp3.1. ContainerObserver.dll, Settings.xml, and ApplicationManifest_Modified.xml files will be placed (and renamed in the case of ApplicationManifest) into the correct locations. In fact, this directory will contain what is effectively an sfpkg file and folder structure:  
 ```
 [sourcedir]\ContainerObserver\bin\release\netcoreapp3.1  
 │   ApplicationManifest.xml  
