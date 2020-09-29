@@ -18,10 +18,10 @@ Create a new .NET Core 3.1 library project, install the nupkg you need for your 
 	Framework-dependent = Requires that .NET Core 3.1 is already installed on target machine.
 
 	Self-contained = Includes all the binaries necessary for running .NET Core 3.1 applications on target machine withoout having to install .NET Core 3.1 Runtime.
-	
-- Build the ContainerObserver project.
 
 - Update the related CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step).
+
+- Build the ContainerObserver project.
 
 - Deploy FabricObserver to your cluster. Your new observer will be managed and run just like any other observer.
 
