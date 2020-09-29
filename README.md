@@ -21,9 +21,7 @@ Create a new .NET Core 3.1 library project, install the nupkg you need for your 
 	
 - Build the ContainerObserver project.
 
-- Add a new config section for your observer in FabricObserver/PackageRoot/Config/Settings.xml (see example at bottom of that file)
-   Update ApplicationManifest.xml with Parameters if you want to support Application Parameter Updates for your plugin.
-   (Look at both FabricObserver/PackageRoot/Config/Settings.xml and FabricObserverApp/ApplicationPackageRoot/ApplicationManifest.xml for several examples of how to do this.) These files are already written for this project.
+- Update the related CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step).
 
 - Deploy FabricObserver to your cluster. Your new observer will be managed and run just like any other observer.
 
@@ -45,33 +43,31 @@ namespace FabricObserver.Observers
     {
         public SampleNewObserver()
         {
-            //... Your impl.
+            //... impl.
         }
 
         public override async Task ObserveAsync(CancellationToken token)
         {
-            //... Your impl.
+            //... impl.
         }
 
         public override async Task ReportAsync(CancellationToken token)
         {
-            //... Your impl.
+            //... impl.
         }
     }
  }
 ```
 
-When you reference the FabricObserver nuget package, you will have access to
-all of the public code in FabricObserver. That is, you will have the same capabilities 
-that all other observers have. The world is your oyster when it comes to creating your
-custom observer to do whatever the underlying platform affords. 
+When you reference the FabricObserver nuget package, you will have access to all of the public code in FabricObserver. That is, you will have the same capabilities 
+that all other observers have. The world is your oyster when it comes to creating your custom observer to do whatever the underlying platform affords. 
 
 ### Note: make sure you know if .NET Core 3.1 is installed on the target server. If it is not, then you must use the SelfContained package. This is very important.
 
 As you can see in this project, there are two key files:
 
-1. ContainerObserver implementation.
-2. The IFabricObserverStartup implementation.
+1. ContainerObserver.cs.
+2. ContainerObserverStartup.cs.
 
 For 2., it's designed to be a trivial - and required - implementation:
 
