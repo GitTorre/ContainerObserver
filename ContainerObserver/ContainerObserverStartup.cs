@@ -1,14 +1,14 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using FabricObserver.Observers;
 
-[assembly: FabricObserver.FabricObserverStartup(typeof(ContainerObserver))]
+[assembly: FabricObserver.FabricObserverStartup(typeof(ContainerObserverStartup))]
 namespace FabricObserver.Observers
 {
     public class ContainerObserverStartup : IFabricObserverStartup
     {
         public void ConfigureServices(IServiceCollection services)
         {
-            _ = services.AddScoped(typeof(ObserverBase), typeof(ContainerObserver));
+            services.AddScoped(typeof(ObserverBase), typeof(ContainerObserver));
         }
     }
 }

@@ -143,7 +143,7 @@ namespace FabricObserver.Observers
 
         public override Task ReportAsync(CancellationToken token)
         {
-            var timeToLiveWarning = SetHealthReportTimeToLive();
+            var timeToLive = SetHealthReportTimeToLive();
 
             foreach (var cpudata in allCpuDataPercentage)
             {
@@ -151,7 +151,7 @@ namespace FabricObserver.Observers
                        cpudata,
                        CpuErrorUsageThresholdPct,
                        CpuWarningUsageThresholdPct,
-                       timeToLiveWarning);
+                       timeToLive);
             }
 
             foreach (var memdata in allMemDataMB)
@@ -160,7 +160,7 @@ namespace FabricObserver.Observers
                        memdata,
                        MemErrorUsageThresholdMB,
                        MemWarningUsageThresholdMB,
-                       timeToLiveWarning);
+                       timeToLive);
             }
 
             return Task.FromResult(1);
