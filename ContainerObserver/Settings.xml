@@ -225,9 +225,6 @@
     <Parameter Name="EnableVerboseLogging" Value="" MustOverride="true" />
     <Parameter Name="RunInterval" Value="" MustOverride="true" />
     <Parameter Name="MonitorDuration" Value="" MustOverride="true" />
-    <Parameter Name="CpuErrorLimitPercent" Value="" MustOverride="true" />
-    <Parameter Name="CpuWarningLimitPercent" Value="" MustOverride="true" />
-    <Parameter Name="MemoryErrorLimitMb" Value="" MustOverride="true" />
-    <Parameter Name="MemoryWarningLimitMb" Value ="" MustOverride="true" />
+    <Parameter Name="ConfigFileName" Value="" MustOverride="true" />
   </Section>
 </Settings>

@@ -1,0 +1,12 @@
+[
+  {
+    "targetApp": "fabric:/ContainerFoo",
+    "cpuWarningLimitPercent": 30,
+    "memoryWarningLimitMB": 150
+  },
+  {
+    "targetApp": "fabric:/ARRType",
+    "cpuWarningLimitPercent": 50,
+    "memoryWarningLimitMB": 250
+  }
+]

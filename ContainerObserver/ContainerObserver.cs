@@ -5,39 +5,36 @@ using FabricObserver.Observers.Utilities;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using FabricObserver.Observers.MachineInfoModel;
+using System.IO;
+using System.Fabric.Health;
+using System.Fabric.Query;
+using System.Fabric;
 
 namespace FabricObserver.Observers
 {
     public class ContainerObserver : ObserverBase
     {
-        // Error thresholds
-        public double CpuErrorUsageThresholdPct
-        {
-            get; set;
-        }
-
-        public double MemErrorUsageThresholdMB
-        {
-            get; set;
-        }
-
-        // Warning thresholds
-        public double CpuWarningUsageThresholdPct
-        {
-            get; set;
-        }
-
-        public double MemWarningUsageThresholdMB
-        {
-            get; set;
-        }
-
         private List<FabricResourceUsageData<double>> allCpuDataPercentage;
         private List<FabricResourceUsageData<double>> allMemDataMB;
 
+        // userTargetList is the list of ApplicationInfo objects representing apps supplied in configuration.
+        private List<ApplicationInfo> userTargetList;
+
+        // deployedTargetList is the list of ApplicationInfo objects representing currently deployed applications in the user-supplied list.
+        private List<ApplicationInfo> deployedTargetList;
+        private List<DeployedCodePackage> deployedCodePackages;
+        public string ConfigPackagePath
+        {
+            get; set;
+        }
+
         public ContainerObserver()
         {
-
+            ConfigPackagePath = MachineInfoModel.ConfigSettings.ConfigPackagePath;
+            this.userTargetList = new List<ApplicationInfo>();
+            this.deployedTargetList = new List<ApplicationInfo>();
+            this.deployedCodePackages = new List<DeployedCodePackage>();
         }
 
         // OsbserverManager passes in a special token to ObserveAsync and ReportAsync that enables it to stop this observer outside of
@@ -53,11 +50,13 @@ namespace FabricObserver.Observers
             }
 
             Stopwatch runTimer = Stopwatch.StartNew();
-            SetThresholdSFromConfiguration();
 
-            var codepackages = await FabricClientInstance.QueryManager.GetDeployedCodePackageListAsync(
-                       NodeName,
-                       new Uri("fabric:/ContainerFoo")).ConfigureAwait(false);
+            if (!await InitializeAsync(token).ConfigureAwait(false))
+            {
+                return;
+            }
+
+            SetConfigurationFilePath();
 
              /*
                 CONTAINER ID        NAME                                                                              CPU %               PRIV WORKING SET    NET I/O             BLOCK I/O
@@ -74,7 +73,7 @@ namespace FabricObserver.Observers
                 allMemDataMB = new List<FabricResourceUsageData<double>>();
             }
 
-            foreach (var codepackage in codepackages.Where(c => c.HostType == System.Fabric.HostType.ContainerHost))
+            foreach (var codepackage in this.deployedCodePackages)
             {
                 // This is how long each measurement sequence for each container can last.
                 TimeSpan duration = TimeSpan.FromSeconds(10);
@@ -187,75 +186,165 @@ namespace FabricObserver.Observers
         {
             var timeToLive = SetHealthReportTimeToLive();
 
-            foreach (var cpudata in allCpuDataPercentage)
+            foreach (var app in this.deployedTargetList)
             {
-                ProcessResourceDataReportHealth(
-                       cpudata,
-                       CpuErrorUsageThresholdPct,
-                       CpuWarningUsageThresholdPct,
-                       timeToLive);
+                var repOrInst = new ReplicaOrInstanceMonitoringInfo
+                {
+                    ApplicationName = new Uri(app.TargetApp),
+                };
+
+                foreach (var cpudata in allCpuDataPercentage)
+                {
+                    ProcessResourceDataReportHealth(
+                           cpudata,
+                           app.CpuErrorLimitPercent,
+                           app.CpuWarningLimitPercent,
+                           timeToLive,
+                           HealthReportType.Application,
+                           repOrInst);
+                }
+
+                foreach (var memdata in allMemDataMB)
+                {
+                    ProcessResourceDataReportHealth(
+                           memdata,
+                           app.MemoryErrorLimitMb,
+                           app.MemoryWarningLimitMb,
+                           timeToLive, 
+                           HealthReportType.Application,
+                           repOrInst);
+                }
             }
 
-            foreach (var memdata in allMemDataMB)
-            {
-                ProcessResourceDataReportHealth(
-                       memdata,
-                       MemErrorUsageThresholdMB,
-                       MemWarningUsageThresholdMB,
-                       timeToLive);
-            }
-
-            return Task.FromResult(1);
+            return Task.FromResult(0);
         }
 
-        private void SetThresholdSFromConfiguration()
+        // Initialize() runs each time ObserveAsync is run to ensure
+        // that any new app targets and config changes will
+        // be up to date across observer loop iterations.
+        private async Task<bool> InitializeAsync(CancellationToken token)
         {
-            /* Error thresholds */
-
-            // This is the main SF runtime token, which will be cancelled if, say, this node goes down or
-            // this service instance goes down.
-            Token.ThrowIfCancellationRequested();
-
-            // This observer uses the same config parameter names as NodeObserver, thus the use of 
-            // ObserverConstants.NodeObserverCpuWarningPct, etc..
-            var cpuError = GetSettingParameterValue(
-                ConfigurationSectionName,
-                ObserverConstants.NodeObserverCpuErrorLimitPct);
-
-            if (!string.IsNullOrEmpty(cpuError) && ulong.TryParse(cpuError, out ulong cpuErrorUsageThresholdPct))
+            if (!File.Exists(this.ConfigPackagePath))
             {
-                CpuErrorUsageThresholdPct = cpuErrorUsageThresholdPct;
+                WriteToLogWithLevel(
+                    ObserverName,
+                    $"Will not observe resource consumption as no configuration parameters have been supplied. | {NodeName}",
+                    LogLevel.Information);
+
+                return false;
             }
 
-            var memError = GetSettingParameterValue(
-                ConfigurationSectionName,
-                ObserverConstants.NodeObserverMemoryErrorLimitMb);
-
-            if (!string.IsNullOrEmpty(memError) && ulong.TryParse(memError, out ulong memErrorUsageThresholdMb))
+            // This code runs each time ObserveAsync is called,
+            // so clear app list and deployed replica/instance list in case a new app has been added to watch list.
+            if (this.userTargetList.Count > 0)
             {
-                MemErrorUsageThresholdMB = memErrorUsageThresholdMb;
+                this.userTargetList.Clear();
             }
 
-            /* Warning thresholds */
-
-            Token.ThrowIfCancellationRequested();
-
-            var cpuWarn = GetSettingParameterValue(
-                ConfigurationSectionName,
-                ObserverConstants.NodeObserverCpuWarningLimitPct);
-
-            if (!string.IsNullOrEmpty(cpuWarn) && ulong.TryParse(cpuWarn, out ulong cpuWarningUsageThresholdPct))
+            if (this.deployedTargetList.Count > 0)
             {
-                CpuWarningUsageThresholdPct = cpuWarningUsageThresholdPct;
+                this.deployedTargetList.Clear();
             }
 
-            var memWarn = GetSettingParameterValue(
-                ConfigurationSectionName,
-                ObserverConstants.NodeObserverMemoryWarningLimitMb);
+            using Stream stream = new FileStream(
+                this.ConfigPackagePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read);
 
-            if (!string.IsNullOrEmpty(memWarn) && ulong.TryParse(memWarn, out ulong memWarningUsageThresholdMb))
+            if (stream.Length > 0
+                && JsonHelper.IsJson<List<ApplicationInfo>>(File.ReadAllText(this.ConfigPackagePath)))
             {
-                MemWarningUsageThresholdMB = memWarningUsageThresholdMb;
+                this.userTargetList.AddRange(JsonHelper.ReadFromJsonStream<ApplicationInfo[]>(stream));
+            }
+
+            // Are any of the config-supplied apps deployed?.
+            if (this.userTargetList.Count == 0)
+            {
+                WriteToLogWithLevel(
+                    ObserverName,
+                    $"Will not observe resource consumption as no configuration parameters have been supplied. | {NodeName}",
+                    LogLevel.Information);
+
+                return false;
+            }
+
+            int settingSFail = 0;
+
+            foreach (var application in this.userTargetList)
+            {
+                token.ThrowIfCancellationRequested();
+
+                if (string.IsNullOrWhiteSpace(application.TargetApp)
+                    && string.IsNullOrWhiteSpace(application.TargetAppType))
+                {
+                    HealthReporter.ReportFabricObserverServiceHealth(
+                        FabricServiceContext.ServiceName.ToString(),
+                        ObserverName,
+                        HealthState.Warning,
+                        $"Initialize() | {application.TargetApp}: Required setting, target, is not set.");
+
+                    settingSFail++;
+
+                    continue;
+                }
+
+                // No required settings supplied for deployed application(s).
+                if (settingSFail == this.userTargetList.Count)
+                {
+                    return false;
+                }
+
+                try
+                {
+                    var codepackages = await FabricClientInstance.QueryManager.GetDeployedCodePackageListAsync(
+                            NodeName,
+                            new Uri(application.TargetApp),
+                            null,
+                            null,
+                            TimeSpan.FromSeconds(30),
+                            token).ConfigureAwait(false);
+
+                    if (codepackages.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    this.deployedCodePackages = codepackages.Where(c => c.HostType == System.Fabric.HostType.ContainerHost).ToList();
+
+                    if (this.deployedCodePackages.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    this.deployedTargetList.Add(application);
+                }
+                catch (Exception e) when (e is FabricException|| e is TimeoutException || e is OperationCanceledException)
+                {
+                }
+            }
+
+            foreach (var app in this.deployedTargetList)
+            {
+                token.ThrowIfCancellationRequested();
+
+                ObserverLogger.LogInfo(
+                    $"Will observe container instance resource consumption by {app.TargetApp} " +
+                    $"on Node {NodeName}.");
+            }
+
+            return true;
+        }
+
+        private void SetConfigurationFilePath()
+        {
+            string configDataFilename = GetSettingParameterValue(
+                ConfigurationSectionName,
+                "ConfigFileName");
+
+            if (!string.IsNullOrEmpty(configDataFilename))
+            {
+                this.ConfigPackagePath += @$"\{configDataFilename}";
             }
         }
     }
