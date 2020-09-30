@@ -2,7 +2,7 @@
   {
     "targetApp": "fabric:/ContainerFoo",
     "cpuWarningLimitPercent": 30,
-    "memoryWarningLimitMB": 150
+    "memoryWarningLimitMB": 50
   },
   {
     "targetApp": "fabric:/ARRType",

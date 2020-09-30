@@ -56,8 +56,6 @@ namespace FabricObserver.Observers
                 return;
             }
 
-            SetConfigurationFilePath();
-
              /*
                 CONTAINER ID        NAME                                                                              CPU %               PRIV WORKING SET    NET I/O             BLOCK I/O
                 644e19852fa0        sf-38-e6837395-6951-4559-acbc-98146d9b3480_52adab36-a1c0-4ea6-95b4-67e51498fb4e   0.01%               53.25MiB            1.16MB / 526kB      28.4MB / 25.8MB
@@ -224,6 +222,8 @@ namespace FabricObserver.Observers
         // be up to date across observer loop iterations.
         private async Task<bool> InitializeAsync(CancellationToken token)
         {
+            SetConfigurationFilePath();
+
             if (!File.Exists(this.ConfigPackagePath))
             {
                 WriteToLogWithLevel(

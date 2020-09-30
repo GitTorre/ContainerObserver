@@ -8,13 +8,13 @@
     <Parameter Name="FabricObserver_InstanceCount" DefaultValue="-1" />
     <!-- Observer Enablement - NOTE: By default, observers are enabled. If you leave DefaultValue as empty string, 
          then it's the same thing as setting it to "true". -->
-    <Parameter Name="AppObserverEnabled" DefaultValue="" />
-    <Parameter Name="CertificateObserverEnabled" DefaultValue="" />
-    <Parameter Name="DiskObserverEnabled" DefaultValue="" />
-    <Parameter Name="FabricSystemObserverEnabled" DefaultValue="" />
-    <Parameter Name="NetworkObserverEnabled" DefaultValue="" />
-    <Parameter Name="NodeObserverEnabled" DefaultValue="" />
-    <Parameter Name="OSObserverEnabled" DefaultValue="" />
+    <Parameter Name="AppObserverEnabled" DefaultValue="false" />
+    <Parameter Name="CertificateObserverEnabled" DefaultValue="true" />
+    <Parameter Name="DiskObserverEnabled" DefaultValue="true" />
+    <Parameter Name="FabricSystemObserverEnabled" DefaultValue="false" />
+    <Parameter Name="NetworkObserverEnabled" DefaultValue="false" />
+    <Parameter Name="NodeObserverEnabled" DefaultValue="true" />
+    <Parameter Name="OSObserverEnabled" DefaultValue="true" />
     <Parameter Name="SFConfigurationObserverEnabled" DefaultValue="false" />
     <Parameter Name="ContainerObserverEnabled" DefaultValue="true" />
     <!-- Observer Telemetry Enablement -->
