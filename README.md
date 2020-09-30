@@ -99,5 +99,5 @@ Example script:
 $path = "[sourcedir]\ContainerObserver\bin\debug\netcoreapp3.1"
 Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3 -TimeoutSec 1800
 Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3
-New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.0.5
+New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.0.6
 ```
