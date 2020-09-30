@@ -2,8 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using FabricObserver.Observers.Utilities;
-using Docker.DotNet;
-using Docker.DotNet.Models;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -18,7 +16,7 @@ namespace FabricObserver.Observers
             get; set;
         }
 
-        public ulong MemErrorUsageThresholdMB
+        public double MemErrorUsageThresholdMB
         {
             get; set;
         }
@@ -29,19 +27,17 @@ namespace FabricObserver.Observers
             get; set;
         }
 
-        public ulong MemWarningUsageThresholdMB
+        public double MemWarningUsageThresholdMB
         {
             get; set;
         }
 
         private List<FabricResourceUsageData<double>> allCpuDataPercentage;
-        private List<FabricResourceUsageData<ulong>> allMemDataMB;
-        private Progress<ContainerStatsResponse> progress;
+        private List<FabricResourceUsageData<double>> allMemDataMB;
 
         public ContainerObserver()
         {
-            this.progress = new Progress<ContainerStatsResponse>();
-            this.progress.ProgressChanged += Progress_ProgressChanged;
+
         }
 
         // OsbserverManager passes in a special token to ObserveAsync and ReportAsync that enables it to stop this observer outside of
@@ -59,24 +55,14 @@ namespace FabricObserver.Observers
             Stopwatch runTimer = Stopwatch.StartNew();
             SetThresholdSFromConfiguration();
 
-            // Get deployed network codepackages (deployed code packages in a container network).
-            // NOTE: This API probably won't work. We will have to figure out another way to get container id given
-            // code package...
-            var codepackages = await FabricClientInstance.NetworkManager.GetDeployedNetworkCodePackageListAsync(
-                new System.Fabric.Description.DeployedNetworkCodePackageQueryDescription
-                {
-                    NodeName = NodeName,
-                    ApplicationNameFilter = new Uri("fabric:/ARRType"),
-                });
+            var codepackages = await FabricClientInstance.QueryManager.GetDeployedCodePackageListAsync(
+                       NodeName,
+                       new Uri("fabric:/ContainerFoo")).ConfigureAwait(false);
 
-            using DockerClient client = new DockerClientConfiguration().CreateClient();
-
-            // This takes a Filter Dictionary, not sure how to use it...
-            /*IList<ContainerListResponse> containers = await client.Containers.ListContainersAsync(
-                new ContainersListParameters()
-                {
-                    Limit = 5,
-                });*/
+             /*
+                CONTAINER ID        NAME                                                                              CPU %               PRIV WORKING SET    NET I/O             BLOCK I/O
+                644e19852fa0        sf-38-e6837395-6951-4559-acbc-98146d9b3480_52adab36-a1c0-4ea6-95b4-67e51498fb4e   0.01%               53.25MiB            1.16MB / 526kB      28.4MB / 25.8MB
+             */
 
             if (allCpuDataPercentage == null)
             {
@@ -85,47 +71,103 @@ namespace FabricObserver.Observers
 
             if (allMemDataMB == null)
             {
-                allMemDataMB = new List<FabricResourceUsageData<ulong>>();
+                allMemDataMB = new List<FabricResourceUsageData<double>>();
             }
 
-            foreach (var codepackage in codepackages)
+            foreach (var codepackage in codepackages.Where(c => c.HostType == System.Fabric.HostType.ContainerHost))
             {
-                token.ThrowIfCancellationRequested();
-
-                Stopwatch monitorTimer = Stopwatch.StartNew();
-
-                var id = codepackage.ContainerId;
-                var cpuId = $"{id}_cpu";
-                var memId = $"{id}_mem";
-
-                // Don't add new fruds if they already exists. These objects live across Observer runs.
-                // Note: Their Data members will be cleared by ProcessDataReportHealth.
-                if (!allCpuDataPercentage.Any(frud => frud.Id == cpuId))
-                {
-                    allCpuDataPercentage.Add(new FabricResourceUsageData<double>("CpuUsePercent", cpuId));
-                }
-
-                if (!allMemDataMB.Any(frud => frud.Id == memId))
-                {
-                    allMemDataMB.Add(new FabricResourceUsageData<ulong>("MemUseMB", memId));
-                }
-
-                var containerParams = new ContainerStatsParameters
-                {
-                    Stream = false,
-                };
-
                 // This is how long each measurement sequence for each container can last.
-                TimeSpan duration = TimeSpan.FromSeconds(15);
+                TimeSpan duration = TimeSpan.FromSeconds(10);
 
                 if (ConfigurationSettings.MonitorDuration > TimeSpan.MinValue)
                 {
                     duration = ConfigurationSettings.MonitorDuration;
                 }
 
+                Stopwatch monitorTimer = Stopwatch.StartNew();
+
                 while (monitorTimer.Elapsed < duration)
                 {
-                    await client.Containers.GetContainerStatsAsync(id, containerParams, progress, token);
+                    var ps = new ProcessStartInfo
+                    {
+                        Arguments = $"/c docker stats --no-stream",
+                        FileName = $"{Environment.GetFolderPath(Environment.SpecialFolder.System)}\\cmd.exe",
+                        UseShellExecute = false,
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        RedirectStandardInput = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = false,
+                    };
+
+                    using var p = Process.Start(ps);
+                    List<string> output = new List<string>();
+                    string l;
+
+                    while ((l = p.StandardOutput.ReadLine()) != null)
+                    {
+                        output.Add(l);
+                    }
+
+                    foreach (string line in output)
+                    {
+                        token.ThrowIfCancellationRequested();
+
+                        if (line.Contains("CONTAINER ID"))
+                        {
+                            continue;
+                        }
+
+                        if (!line.Contains(codepackage.ServicePackageActivationId))
+                        {
+                            continue;
+                        }
+
+                        var id = codepackage.ServicePackageActivationId;
+                        var cpuId = $"{id}_cpu";
+                        var memId = $"{id}_mem";
+
+                        // Don't add new fruds if they already exists. These objects live across Observer runs.
+                        // Note: Their Data members will be cleared by ProcessDataReportHealth.
+                        if (!allCpuDataPercentage.Any(frud => frud.Id == cpuId))
+                        {
+                            allCpuDataPercentage.Add(new FabricResourceUsageData<double>("CpuUsePercent", cpuId));
+                        }
+
+                        if (!allMemDataMB.Any(frud => frud.Id == memId))
+                        {
+                            allMemDataMB.Add(new FabricResourceUsageData<double>("MemUseMB", memId));
+                        }
+
+                        var stats = line.Split(" ", StringSplitOptions.RemoveEmptyEntries).ToList();
+                        
+                        if (stats.Count == 0)
+                        {
+                            ObserverLogger.LogWarning("docker stats not returning any information.");
+                            return;
+                        }
+
+                        string containerid = stats[0];
+
+                        foreach (var stat in stats)
+                        {
+                            token.ThrowIfCancellationRequested();
+                   
+                            if (stat.Contains("%"))
+                            {
+                                double cpu_percent = double.Parse(stat.Replace("%", ""));
+                                allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
+                                ObserverLogger.LogInfo($"CPU% for container {containerid}: {cpu_percent}");
+                            }
+
+                            if (stat.Contains("MiB"))
+                            {
+                                double mem_working_set_mb = double.Parse(stat.Replace("MiB", ""));
+                                allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
+                                ObserverLogger.LogInfo($"Workingset MB for container {containerid}: {mem_working_set_mb}");
+                            }
+                        }
+                    }
+
                     await Task.Delay(250);
                 }
 
@@ -135,7 +177,7 @@ namespace FabricObserver.Observers
 
             runTimer.Stop();
             RunDuration = runTimer.Elapsed;
-          
+
             await ReportAsync(token).ConfigureAwait(true);
 
             LastRunDateTime = DateTime.Now;
@@ -164,34 +206,6 @@ namespace FabricObserver.Observers
             }
 
             return Task.FromResult(1);
-        }
-
-        // NOTE: I have not tested this.
-        private void Progress_ProgressChanged(object sender, ContainerStatsResponse e)
-        {
-            // https://github.com/moby/moby/blob/eb131c5383db8cac633919f82abad86c99bffbe5/cli/command/container/stats_helpers.go#L175
-            // 1 Tick = 100 nanoseconds.
-            uint possIntervals = (uint)e.Read.Subtract(e.PreRead).Ticks / 100; // Start with number of ns intervals.
-            possIntervals /= 100; // Convert to number of 100ns intervals.
-            possIntervals *= e.NumProcs; // Multiply by the number of processors.
-
-            // Intervals used: pre = *previous* value, which is required to determine the percentage of cpu used by 
-            // this container instance at the time when this observation is made.
-            ulong intervalsUsed = e.CPUStats.CPUUsage.TotalUsage - e.PreCPUStats.CPUUsage.TotalUsage;
-            double cpuPercent = 0.00;
-
-            // Avoid divide-by-zero.
-            if (possIntervals > 0)
-            {
-                cpuPercent = intervalsUsed / possIntervals * 100.0;
-            }
-  
-            // if this comes back as bytes (I *think* it does), then you need to convert to MB.= or whatever maps to your configuration
-            // value for memory in use. If it doesn't, then remove converstion from bytes to MB below..
-            var mem = e.MemoryStats.PrivateWorkingSet / 1024 / 1024;
-
-            allCpuDataPercentage.Where(f => f.Id == $"{e.ID}_cpu").FirstOrDefault().Data.Add(cpuPercent);
-            allMemDataMB.Where(f => f.Id == $"{e.ID}_mem").FirstOrDefault().Data.Add(mem);
         }
 
         private void SetThresholdSFromConfiguration()
@@ -243,16 +257,6 @@ namespace FabricObserver.Observers
             {
                 MemWarningUsageThresholdMB = memWarningUsageThresholdMb;
             }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (this.progress != null)
-            {
-                this.progress.ProgressChanged -= Progress_ProgressChanged;
-            }
-
-            base.Dispose(disposing);
         }
     }
 }

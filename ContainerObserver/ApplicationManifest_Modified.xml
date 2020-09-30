@@ -107,9 +107,7 @@
     <Parameter Name="ContainerObserverCpuErrorLimitPercent" DefaultValue="" />
     <Parameter Name="ContainerObserverCpuWarningLimitPercent" DefaultValue="50" />
     <Parameter Name="ContainerObserverMemoryErrorLimitMb" DefaultValue="" />
-    <Parameter Name="ContainerObserverMemoryWarningLimitMb" DefaultValue="" />
-    <Parameter Name="ContainerObserverMemoryErrorLimitPercent" DefaultValue="" />
-    <Parameter Name="ContainerObserverMemoryWarningLimitPercent" DefaultValue="40" />
+    <Parameter Name="ContainerObserverMemoryWarningLimitMb" DefaultValue="500" />
     <!-- Observers with JSON config - File names.
          You can point to a different, existing file name in PackageRoot's Config, for example. -->
     <Parameter Name="AppObserverConfigurationFile" DefaultValue="AppObserver.config.json" />
@@ -230,12 +228,13 @@
             <Parameter Name="CpuWarningLimitPercent" Value="[ContainerObserverCpuWarningLimitPercent]" />
             <Parameter Name="MemoryErrorLimitMb" Value="[ContainerObserverMemoryErrorLimitMb]" />
             <Parameter Name="MemoryWarningLimitMb" Value="[ContainerObserverMemoryWarningLimitMb]" />
-            <Parameter Name="MemoryErrorLimitPercent" Value="[ContainerObserverMemoryErrorLimitPercent]" />
-            <Parameter Name="MemoryWarningLimitPercent" Value="[ContainerObserverMemoryWarningLimitPercent]" />
           </Section>
         </Settings>
       </ConfigOverride>
     </ConfigOverrides>
+    <Policies>
+      <RunAsPolicy CodePackageRef="Code" UserRef="SystemUser" />
+    </Policies>
   </ServiceManifestImport>
   <DefaultServices>
     <!-- The section below creates instances of service types, when an instance of this 
@@ -248,4 +247,9 @@
       </StatelessService>
     </Service>
   </DefaultServices>
+  <Principals>
+    <Users>
+      <User Name="SystemUser" AccountType="LocalSystem" />
+    </Users>
+  </Principals>
 </ApplicationManifest>

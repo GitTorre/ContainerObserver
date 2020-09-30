@@ -5,10 +5,8 @@
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>FabricObserver.Observers</RootNamespace>
     <AssemblyName>ContainerObserver</AssemblyName>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Docker.DotNet" Version="3.125.4" />
     <PackageReference Include="FabricObserver.Windows.SelfContained" Version="3.0.5" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="3.1.8" />
     <PackageReference Include="Microsoft.ServiceFabric" Version="7.1.458" />
@@ -22,6 +20,6 @@
     </None>
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="copy &quot;$(OutDir)ApplicationManifest_Modified.xml&quot; &quot;$(OutDir)ApplicationManifest.xml&quot;&#xD;&#xA;copy &quot;$(OutDir)Settings.xml&quot; &quot;$(OutDir)FabricObserverPkg\Config&quot;&#xD;&#xA;copy &quot;$(OutDir)ContainerObserver.dll&quot; &quot;$(OutDir)FabricObserverPkg\Data\Plugins&quot;&#xD;&#xA;copy &quot;$(OutDir)ContainerObserver.pdb&quot; &quot;$(OutDir)FabricObserverPkg\Data\Plugins&quot;&#xD;&#xA;copy &quot;$(OutDir)ContainerObserver.deps.json&quot; &quot;$(OutDir)FabricObserverPkg\Data\Plugins&quot;&#xD;&#xA;copy &quot;$(OutDir)Docker.DotNet.dll&quot;  &quot;$(OutDir)FabricObserverPkg\Data\Plugins&quot;&#xD;&#xA;&#xD;&#xA;del &quot;$(OutDir)ApplicationManifest_Modified.xml&quot; &#xD;&#xA;del &quot;$(OutDir)FabricObserverPkg\ServiceManifest._linux.xml&quot;&#xD;&#xA;del &quot;$(OutDir)Settings.xml&quot;&#xD;&#xA;del &quot;$(OutDir)*.dll&quot;&#xD;&#xA;del &quot;$(OutDir)*.json&quot;&#xD;&#xA;del &quot;$(OutDir)*.pdb&quot;&#xD;&#xA;&#xD;&#xA;" />
+    <Exec Command="copy &quot;$(OutDir)ApplicationManifest_Modified.xml&quot; &quot;$(OutDir)ApplicationManifest.xml&quot;&#xD;&#xA;copy &quot;$(OutDir)Settings.xml&quot; &quot;$(OutDir)FabricObserverPkg\Config&quot;&#xD;&#xA;copy &quot;$(OutDir)ContainerObserver.dll&quot; &quot;$(OutDir)FabricObserverPkg\Data\Plugins&quot;&#xD;&#xA;copy &quot;$(OutDir)ContainerObserver.pdb&quot; &quot;$(OutDir)FabricObserverPkg\Data\Plugins&quot;&#xD;&#xA;&#xD;&#xA;del &quot;$(OutDir)ApplicationManifest_Modified.xml&quot; &#xD;&#xA;del &quot;$(OutDir)FabricObserverPkg\ServiceManifest._linux.xml&quot;&#xD;&#xA;del &quot;$(OutDir)Settings.xml&quot;&#xD;&#xA;del &quot;$(OutDir)*.dll&quot;&#xD;&#xA;del &quot;$(OutDir)*.json&quot;&#xD;&#xA;del &quot;$(OutDir)*.pdb&quot;&#xD;&#xA;&#xD;&#xA;" />
   </Target>
 </Project>
