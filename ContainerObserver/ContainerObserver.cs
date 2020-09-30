@@ -24,6 +24,8 @@ namespace FabricObserver.Observers
         // deployedTargetList is the list of ApplicationInfo objects representing currently deployed applications in the user-supplied list.
         private List<ApplicationInfo> deployedTargetList;
         private List<DeployedCodePackage> deployedCodePackages;
+        private string ConfigurationFilePath = string.Empty;
+
         public string ConfigPackagePath
         {
             get; set;
@@ -217,14 +219,13 @@ namespace FabricObserver.Observers
             return Task.FromResult(0);
         }
 
-        // Initialize() runs each time ObserveAsync is run to ensure
-        // that any new app targets and config changes will
+        // Initialize() runs each time ObserveAsync is run to ensure that any new app targets and config changes will
         // be up to date across observer loop iterations.
         private async Task<bool> InitializeAsync(CancellationToken token)
         {
             SetConfigurationFilePath();
 
-            if (!File.Exists(this.ConfigPackagePath))
+            if (!File.Exists(this.ConfigurationFilePath))
             {
                 WriteToLogWithLevel(
                     ObserverName,
@@ -247,13 +248,13 @@ namespace FabricObserver.Observers
             }
 
             using Stream stream = new FileStream(
-                this.ConfigPackagePath,
+                this.ConfigurationFilePath,
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read);
 
             if (stream.Length > 0
-                && JsonHelper.IsJson<List<ApplicationInfo>>(File.ReadAllText(this.ConfigPackagePath)))
+                && JsonHelper.IsJson<List<ApplicationInfo>>(File.ReadAllText(this.ConfigurationFilePath)))
             {
                 this.userTargetList.AddRange(JsonHelper.ReadFromJsonStream<ApplicationInfo[]>(stream));
             }
@@ -342,9 +343,10 @@ namespace FabricObserver.Observers
                 ConfigurationSectionName,
                 "ConfigFileName");
 
-            if (!string.IsNullOrEmpty(configDataFilename))
+            if (!string.IsNullOrEmpty(configDataFilename) 
+                && !this.ConfigurationFilePath.Contains(configDataFilename))
             {
-                this.ConfigPackagePath += @$"\{configDataFilename}";
+                this.ConfigurationFilePath = Path.Combine(ConfigPackagePath, configDataFilename);
             }
         }
     }

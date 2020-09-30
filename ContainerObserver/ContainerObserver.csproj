@@ -7,7 +7,7 @@
     <AssemblyName>ContainerObserver</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="FabricObserver.Windows.SelfContained" Version="3.0.5" />
+    <PackageReference Include="FabricObserver.Windows.SelfContained" Version="3.0.6" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="3.1.8" />
     <PackageReference Include="Microsoft.ServiceFabric" Version="7.1.458" />
   </ItemGroup>
