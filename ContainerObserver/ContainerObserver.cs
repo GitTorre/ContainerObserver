@@ -23,7 +23,7 @@ namespace FabricObserver.Observers
 
         // deployedTargetList is the list of ApplicationInfo objects representing currently deployed applications in the user-supplied list.
         private List<ApplicationInfo> deployedTargetList;
-        private List<DeployedCodePackage> deployedCodePackages;
+        private Dictionary<string, List<DeployedCodePackage>> deployedCodePackages;
         private string ConfigurationFilePath = string.Empty;
 
         public string ConfigPackagePath
@@ -36,7 +36,7 @@ namespace FabricObserver.Observers
             ConfigPackagePath = MachineInfoModel.ConfigSettings.ConfigPackagePath;
             this.userTargetList = new List<ApplicationInfo>();
             this.deployedTargetList = new List<ApplicationInfo>();
-            this.deployedCodePackages = new List<DeployedCodePackage>();
+            this.deployedCodePackages = new Dictionary<string, List<DeployedCodePackage>>();
         }
 
         // OsbserverManager passes in a special token to ObserveAsync and ReportAsync that enables it to stop this observer outside of
@@ -116,12 +116,12 @@ namespace FabricObserver.Observers
                             continue;
                         }
 
-                        if (!line.Contains(codepackage.ServicePackageActivationId))
+                        if (!codepackage.Value.Any(c => line.Contains(c.ServicePackageActivationId)))
                         {
                             continue;
                         }
 
-                        var id = codepackage.ServicePackageActivationId;
+                        var id = codepackage.Key;
                         var cpuId = $"{id}_cpu";
                         var memId = $"{id}_mem";
 
@@ -193,7 +193,7 @@ namespace FabricObserver.Observers
                     ApplicationName = new Uri(app.TargetApp),
                 };
 
-                foreach (var cpudata in allCpuDataPercentage)
+                foreach (var cpudata in allCpuDataPercentage.Where(a => a.Id == $"{app.TargetApp}_cpu"))
                 {
                     ProcessResourceDataReportHealth(
                            cpudata,
@@ -204,7 +204,7 @@ namespace FabricObserver.Observers
                            repOrInst);
                 }
 
-                foreach (var memdata in allMemDataMB)
+                foreach (var memdata in allMemDataMB.Where(a => a.Id == $"{app.TargetApp}_mem"))
                 {
                     ProcessResourceDataReportHealth(
                            memdata,
@@ -311,11 +311,21 @@ namespace FabricObserver.Observers
                         continue;
                     }
 
-                    this.deployedCodePackages = codepackages.Where(c => c.HostType == System.Fabric.HostType.ContainerHost).ToList();
+                    var containerhostedPkgs = codepackages.Where(c => c.HostType == HostType.ContainerHost);
 
-                    if (this.deployedCodePackages.Count == 0)
+                    if (containerhostedPkgs.Count() == 0)
                     {
                         continue;
+                    }
+
+                    if (!this.deployedCodePackages.ContainsKey(application.TargetApp))
+                    {
+                        this.deployedCodePackages.Add(application.TargetApp,
+                            containerhostedPkgs.ToList());
+                    }
+                    else
+                    {
+                        this.deployedCodePackages[application.TargetApp] = containerhostedPkgs.ToList();
                     }
 
                     this.deployedTargetList.Add(application);
