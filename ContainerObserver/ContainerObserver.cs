@@ -219,7 +219,7 @@ namespace FabricObserver.Observers
             return Task.FromResult(0);
         }
 
-        // Initialize() runs each time ObserveAsync is run to ensure that any new app targets and config changes will
+        // Runs each time ObserveAsync is run to ensure that any new app targets and config changes will
         // be up to date across observer loop iterations.
         private async Task<bool> InitializeAsync(CancellationToken token)
         {
@@ -283,7 +283,7 @@ namespace FabricObserver.Observers
                         FabricServiceContext.ServiceName.ToString(),
                         ObserverName,
                         HealthState.Warning,
-                        $"Initialize() | {application.TargetApp}: Required setting, target, is not set.");
+                        $"InitializeAsync | {application.TargetApp}: Required setting, target, is not set.");
 
                     settingSFail++;
 
