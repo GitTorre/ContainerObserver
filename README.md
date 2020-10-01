@@ -7,7 +7,7 @@ This is a sample implementation of a [FabricObserver](https://aka.ms/sf/fabricob
 #### Steps 
 - Clone repo.
 - Install [.Net Core 3.1](https://dotnet.microsoft.com/download/dotnet-core/3.1).
-- Download and install the Windows-SelfContained nupkg file from the [FabricObserver repo's Releases section](https://github.com/microsoft/service-fabric-observer/releases). 
+- Download and install the latest Windows-SelfContained nupkg file from the [FabricObserver repo's Releases section](https://github.com/microsoft/service-fabric-observer/releases). 
 - Update the ContainerObserver CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.
 - Build the ContainerObserver project.
 - Deploy FabricObserver to your cluster. Your new observer will be managed and run just like any other observer.
