@@ -129,12 +129,12 @@ namespace FabricObserver.Observers
                         // Note: Their Data members will be cleared by ProcessDataReportHealth.
                         if (!allCpuDataPercentage.Any(frud => frud.Id == cpuId))
                         {
-                            allCpuDataPercentage.Add(new FabricResourceUsageData<double>("CpuUsePercent", cpuId));
+                            allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId));
                         }
 
                         if (!allMemDataMB.Any(frud => frud.Id == memId))
                         {
-                            allMemDataMB.Add(new FabricResourceUsageData<double>("MemUseMB", memId));
+                            allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId));
                         }
 
                         var stats = line.Split(" ", StringSplitOptions.RemoveEmptyEntries).ToList();
