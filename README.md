@@ -107,7 +107,7 @@ When you build the ContainerObserver plugin project, all files will be placed in
 Example script: 
 
 ```Powershell
-$path = "[sourcedir]\ContainerObserver\bin\debug\netcoreapp3.1"
+$path = "[sourcedir]\ContainerObserver\bin\Debug\netcoreapp3.1\[win-x64 or linux-x64, depending on your build target...]"
 Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3 -TimeoutSec 1800
 Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3
 New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.0.6
