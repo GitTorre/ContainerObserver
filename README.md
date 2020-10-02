@@ -10,8 +10,16 @@ ContainerObserver monitors and reports on machine resource use - CPU% and Privat
 #### Steps 
 - Clone repo.
 - Install [.Net Core 3.1](https://dotnet.microsoft.com/download/dotnet-core/3.1).
-- Download and install the latest Windows-SelfContained nupkg file from the [FabricObserver repo's Releases section](https://github.com/microsoft/service-fabric-observer/releases). 
-- Update the ContainerObserver CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.
+- Download and install the latest Windows or Linux SelfContained nupkg file from the [FabricObserver repo's Releases section](https://github.com/microsoft/service-fabric-observer/releases).  
+- Update the ContainerObserver CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.  
+
+NOTE: For linux deployments, you must also add the following to ApplicationManifest_Modified.xml: 
+```xml
+    <Policies>
+      <RunAsPolicy CodePackageRef="Code" UserRef="SystemUser" EntryPointType="Setup" />
+    </Policies>
+```
+
 - Build the ContainerObserver project.
 - Deploy FabricObserver to your cluster. Your new observer will be managed and run just like any other observer.
 
