@@ -15,6 +15,7 @@ ContainerObserver monitors and reports on machine resource use - CPU% and Privat
 
 NOTE: For linux deployments, you must modify ContainerObserver.csproj to build linux-x64 (&lt;RuntimeIdentifier&gt;linux-x64&lt;/RuntimeIdentifier&gt;) also add the following to ApplicationManifest_Modified.xml: 
 ```xml
+    </ConfigOverrides>
     <Policies>
       <RunAsPolicy CodePackageRef="Code" UserRef="SystemUser" EntryPointType="Setup" />
     </Policies>
