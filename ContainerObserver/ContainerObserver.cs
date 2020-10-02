@@ -10,6 +10,7 @@ using System.IO;
 using System.Fabric.Health;
 using System.Fabric.Query;
 using System.Fabric;
+using System.Runtime.InteropServices;
 
 namespace FabricObserver.Observers
 {
@@ -84,13 +85,25 @@ namespace FabricObserver.Observers
                 }
 
                 Stopwatch monitorTimer = Stopwatch.StartNew();
+                var args = "/c docker stats --no-stream";
+                var filename = $"{Environment.GetFolderPath(Environment.SpecialFolder.System)}\\cmd.exe";
+               
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                {
+                    args = string.Empty;
+                    
+                    // We need the full path to the currently deployed FO CodePackage, which is where our 
+                    // linux capabilities-laced proxy binary lives, which is used for elevated_docker_stats call.
+                    string path = FabricServiceContext.CodePackageActivationContext.GetCodePackageObject("Code").Path;
+                    filename = $"{path}/elevated_docker_stats";
+                }
 
                 while (monitorTimer.Elapsed < duration)
                 {
                     var ps = new ProcessStartInfo
                     {
-                        Arguments = $"/c docker stats --no-stream",
-                        FileName = $"{Environment.GetFolderPath(Environment.SpecialFolder.System)}\\cmd.exe",
+                        Arguments = args,
+                        FileName = filename,
                         UseShellExecute = false,
                         WindowStyle = ProcessWindowStyle.Hidden,
                         RedirectStandardInput = false,
