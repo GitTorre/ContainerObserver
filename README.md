@@ -1,6 +1,9 @@
 # ContainerObserver
 
-This is a sample implementation of a [FabricObserver](https://aka.ms/sf/fabricobserver) plugin that monitors dockerd-process-hosted Service Fabric app container instances for CPU and Memory use. It is mostly complete, but requires testing and potential modification for your scenarios. The purpose of this is to show how you could design and implement a FabricObserver plugin to monitor machine resource use for containers that are hosted in a dockerd process in a Windows Service Fabric Cluster. Feel free to modify and submit a pull request if you find bugs or determine something is wrong with the design/impl.  
+This is an implementation of a [FabricObserver](https://aka.ms/sf/fabricobserver) plugin that monitors dockerd-process-hosted Service Fabric app container instances for CPU and Memory use. It demonstrates how to write FabricObserver plugins that extend FabricObserver's capabilities and then deploy FO to your cluster from the plugin build output directory (which is effectively a decompressed sfpkg).
+
+### What it does
+ContainerObserver monitors and reports on machine resource use - CPU% and Private Working Set MB in this impl (extend based on your needs) - emitting warnings or errors based on configurable threshold values for dockerd container apps running in Windows Service Fabric Clusters. Linux support is coming soon.
 
 ### FabricObserver Plugin Model  
 
