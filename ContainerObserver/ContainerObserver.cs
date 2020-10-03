@@ -64,14 +64,14 @@ namespace FabricObserver.Observers
                 644e19852fa0        sf-38-e6837395-6951-4559-acbc-98146d9b3480_52adab36-a1c0-4ea6-95b4-67e51498fb4e   0.01%               53.25MiB            1.16MB / 526kB      28.4MB / 25.8MB
              */
 
-            if (allCpuDataPercentage == null)
+            if (this.allCpuDataPercentage == null)
             {
-                allCpuDataPercentage = new List<FabricResourceUsageData<double>>();
+                this.allCpuDataPercentage = new List<FabricResourceUsageData<double>>();
             }
 
-            if (allMemDataMB == null)
+            if (this.allMemDataMB == null)
             {
-                allMemDataMB = new List<FabricResourceUsageData<double>>();
+                this.allMemDataMB = new List<FabricResourceUsageData<double>>();
             }
 
             foreach (var codepackage in this.deployedCodePackages)
@@ -85,8 +85,8 @@ namespace FabricObserver.Observers
                 }
 
                 Stopwatch monitorTimer = Stopwatch.StartNew();
-                var args = "/c docker stats --no-stream";
-                var filename = $"{Environment.GetFolderPath(Environment.SpecialFolder.System)}\\cmd.exe";
+                string args = "/c docker stats --no-stream";
+                string filename = $"{Environment.GetFolderPath(Environment.SpecialFolder.System)}\\cmd.exe";
                
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
@@ -100,7 +100,7 @@ namespace FabricObserver.Observers
 
                 while (monitorTimer.Elapsed < duration)
                 {
-                    var ps = new ProcessStartInfo
+                    ProcessStartInfo ps = new ProcessStartInfo
                     {
                         Arguments = args,
                         FileName = filename,
@@ -111,7 +111,7 @@ namespace FabricObserver.Observers
                         RedirectStandardError = false,
                     };
 
-                    using var p = Process.Start(ps);
+                    using Process p = Process.Start(ps);
                     List<string> output = new List<string>();
                     string l;
 
@@ -124,33 +124,29 @@ namespace FabricObserver.Observers
                     {
                         token.ThrowIfCancellationRequested();
 
-                        if (line.Contains("CONTAINER ID"))
-                        {
-                            continue;
-                        }
-
                         if (!codepackage.Value.Any(c => line.Contains(c.ServicePackageActivationId)))
                         {
                             continue;
                         }
 
-                        var id = codepackage.Key;
-                        var cpuId = $"{id}_cpu";
-                        var memId = $"{id}_mem";
+                        string appName = codepackage.Key;
+                        string containerServicePackageId = this.deployedCodePackages[appName].FirstOrDefault().ServicePackageActivationId;
+                        string cpuId = $"{appName}_{containerServicePackageId}_cpu";
+                        string memId = $"{appName}_{containerServicePackageId}_mem";
 
                         // Don't add new fruds if they already exists. These objects live across Observer runs.
                         // Note: Their Data members will be cleared by ProcessDataReportHealth.
-                        if (!allCpuDataPercentage.Any(frud => frud.Id == cpuId))
+                        if (!this.allCpuDataPercentage.Any(frud => frud.Id == cpuId))
                         {
-                            allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId));
+                            this.allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId));
                         }
 
-                        if (!allMemDataMB.Any(frud => frud.Id == memId))
+                        if (!this.allMemDataMB.Any(frud => frud.Id == memId))
                         {
-                            allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId));
+                            this.allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId));
                         }
 
-                        var stats = line.Split(" ", StringSplitOptions.RemoveEmptyEntries).ToList();
+                        List<string> stats = line.Split(" ", StringSplitOptions.RemoveEmptyEntries).ToList();
                         
                         if (stats.Count == 0)
                         {
@@ -160,21 +156,21 @@ namespace FabricObserver.Observers
 
                         string containerid = stats[0];
 
-                        foreach (var stat in stats)
+                        foreach (string stat in stats)
                         {
                             token.ThrowIfCancellationRequested();
                    
                             if (stat.Contains("%"))
                             {
                                 double cpu_percent = double.Parse(stat.Replace("%", ""));
-                                allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
+                                this.allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
                                 ObserverLogger.LogInfo($"CPU% for container {containerid}: {cpu_percent}");
                             }
 
                             if (stat.Contains("MiB"))
                             {
                                 double mem_working_set_mb = double.Parse(stat.Replace("MiB", ""));
-                                allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
+                                this.allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
                                 ObserverLogger.LogInfo($"Workingset MB for container {containerid}: {mem_working_set_mb}");
                             }
                         }
@@ -197,7 +193,7 @@ namespace FabricObserver.Observers
 
         public override Task ReportAsync(CancellationToken token)
         {
-            var timeToLive = SetHealthReportTimeToLive();
+            TimeSpan timeToLive = SetHealthReportTimeToLive();
 
             foreach (var app in this.deployedTargetList)
             {
@@ -206,26 +202,33 @@ namespace FabricObserver.Observers
                     ApplicationName = new Uri(app.TargetApp),
                 };
 
-                foreach (var cpudata in allCpuDataPercentage.Where(a => a.Id == $"{app.TargetApp}_cpu"))
+                foreach (var codepackage in this.deployedCodePackages.Where(c => c.Key == app.TargetApp))
                 {
-                    ProcessResourceDataReportHealth(
-                           cpudata,
-                           app.CpuErrorLimitPercent,
-                           app.CpuWarningLimitPercent,
-                           timeToLive,
-                           HealthReportType.Application,
-                           repOrInst);
-                }
+                    var containerPackageId = codepackage.Value[0].ServicePackageActivationId;
+                    string cpuId = $"{app.TargetApp}_{containerPackageId}_cpu";
+                    string memId = $"{app.TargetApp}_{containerPackageId}_mem";
 
-                foreach (var memdata in allMemDataMB.Where(a => a.Id == $"{app.TargetApp}_mem"))
-                {
-                    ProcessResourceDataReportHealth(
-                           memdata,
-                           app.MemoryErrorLimitMb,
-                           app.MemoryWarningLimitMb,
-                           timeToLive, 
-                           HealthReportType.Application,
-                           repOrInst);
+                    foreach (var cpudata in this.allCpuDataPercentage.Where(a => a.Id == cpuId))
+                    {
+                        ProcessResourceDataReportHealth(
+                               cpudata,
+                               app.CpuErrorLimitPercent,
+                               app.CpuWarningLimitPercent,
+                               timeToLive,
+                               HealthReportType.Application,
+                               repOrInst);
+                    }
+
+                    foreach (var memdata in this.allMemDataMB.Where(a => a.Id == memId))
+                    {
+                        ProcessResourceDataReportHealth(
+                               memdata,
+                               app.MemoryErrorLimitMb,
+                               app.MemoryWarningLimitMb,
+                               timeToLive,
+                               HealthReportType.Application,
+                               repOrInst);
+                    }
                 }
             }
 
