@@ -3,15 +3,24 @@
 This is an implementation of a [FabricObserver](https://aka.ms/sf/fabricobserver) plugin that monitors dockerd-process-hosted Service Fabric app container instances for CPU and Memory use. It demonstrates how to write FabricObserver plugins that extend FabricObserver's capabilities and then deploy FO to your cluster from the plugin build output directory (which is effectively a decompressed sfpkg).
 
 ### What it does
-ContainerObserver monitors and reports on machine resource use - CPU% and Private Working Set MB in this impl (extend based on your needs) - emitting warnings or errors based on configurable threshold values for dockerd container apps running in Windows Service Fabric Clusters. Linux support is coming soon.
+ContainerObserver monitors and reports on machine resource use - CPU% and Private Working Set MB in this impl (extend based on your needs) - emitting warnings or errors based on configurable threshold values for Service Fabric docker container apps running in Windows and Linux clusters.
 
 ### FabricObserver Plugin Model  
 
 #### Steps 
 - Clone repo.
 - Install [.Net Core 3.1](https://dotnet.microsoft.com/download/dotnet-core/3.1).
-- Download and install the latest Windows-SelfContained nupkg file from the [FabricObserver repo's Releases section](https://github.com/microsoft/service-fabric-observer/releases). 
-- Update the ContainerObserver CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.
+- Download and install the latest Windows or Linux SelfContained nupkg file from the [FabricObserver repo's Releases section](https://github.com/microsoft/service-fabric-observer/releases).  
+- Update the ContainerObserver CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.  
+
+NOTE: For linux deployments, you must modify ContainerObserver.csproj to build linux-x64 (&lt;RuntimeIdentifier&gt;linux-x64&lt;/RuntimeIdentifier&gt;) also add the following to ApplicationManifest_Modified.xml: 
+```xml
+    </ConfigOverrides>
+    <Policies>
+      <RunAsPolicy CodePackageRef="Code" UserRef="SystemUser" EntryPointType="Setup" />
+    </Policies>
+```
+
 - Build the ContainerObserver project.
 - Deploy FabricObserver to your cluster. Your new observer will be managed and run just like any other observer.
 
@@ -99,7 +108,7 @@ When you build the ContainerObserver plugin project, all files will be placed in
 Example script: 
 
 ```Powershell
-$path = "[sourcedir]\ContainerObserver\bin\debug\netcoreapp3.1"
+$path = "[sourcedir]\ContainerObserver\bin\Debug\netcoreapp3.1\[win-x64 or linux-x64, depending on your build target...]"
 Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3 -TimeoutSec 1800
 Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3
 New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.0.6
