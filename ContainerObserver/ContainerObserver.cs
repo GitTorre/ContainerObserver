@@ -24,7 +24,7 @@ namespace FabricObserver.Observers
 
         // deployedTargetList is the list of ApplicationInfo objects representing currently deployed applications in the user-supplied list.
         private List<ApplicationInfo> deployedTargetList;
-        private Dictionary<string, List<DeployedCodePackage>> deployedCodePackagesDictionary;
+        private List<ReplicaOrInstanceMonitoringInfo> replicaOrInstanceList;
         private string ConfigurationFilePath = string.Empty;
 
         public string ConfigPackagePath
@@ -37,7 +37,7 @@ namespace FabricObserver.Observers
             ConfigPackagePath = MachineInfoModel.ConfigSettings.ConfigPackagePath;
             this.userTargetList = new List<ApplicationInfo>();
             this.deployedTargetList = new List<ApplicationInfo>();
-            this.deployedCodePackagesDictionary = new Dictionary<string, List<DeployedCodePackage>>();
+            this.replicaOrInstanceList = new List<ReplicaOrInstanceMonitoringInfo>();
         }
 
         // OsbserverManager passes in a special token to ObserveAsync and ReportAsync that enables it to stop this observer outside of
@@ -64,20 +64,23 @@ namespace FabricObserver.Observers
                 644e19852fa0        sf-38-e6837395-6951-4559-acbc-98146d9b3480_52adab36-a1c0-4ea6-95b4-67e51498fb4e   0.01%               53.25MiB            1.16MB / 526kB      28.4MB / 25.8MB
              */
 
-            if (this.allCpuDataPercentage == null)
-            {
-                this.allCpuDataPercentage = new List<FabricResourceUsageData<double>>();
-            }
-
-            if (this.allMemDataMB == null)
-            {
-                this.allMemDataMB = new List<FabricResourceUsageData<double>>();
-            }
-
-            foreach (var kvp in this.deployedCodePackagesDictionary)
+            foreach (var repOrInst in this.replicaOrInstanceList)
             {
                 // This is how long each measurement sequence for each container can last.
                 TimeSpan duration = TimeSpan.FromSeconds(10);
+                string cpuId = $"{repOrInst.ServiceName}_cpu";
+                string memId = $"{repOrInst.ServiceName}_mem";
+                string containerId = string.Empty;
+
+                if (!this.allCpuDataPercentage.Any(frud => frud.Id == cpuId))
+                {
+                    this.allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId));
+                }
+
+                if (!this.allMemDataMB.Any(frud => frud.Id == memId))
+                {
+                    this.allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId));
+                }
 
                 if (ConfigurationSettings.MonitorDuration > TimeSpan.MinValue)
                 {
@@ -124,64 +127,43 @@ namespace FabricObserver.Observers
                     {
                         token.ThrowIfCancellationRequested();
 
-                        if (!kvp.Value.Any(c => line.Contains(c.ServicePackageActivationId)))
+                        if (!line.Contains(repOrInst.ServicePackageActivationId))
                         {
                             continue;
                         }
 
-                        string appName = kvp.Key;
-                        var deployedCodepackages = this.deployedCodePackagesDictionary[appName];
-                        
-                        foreach (var dcpkg in deployedCodepackages)
+                        List<string> stats = line.Split(" ", StringSplitOptions.RemoveEmptyEntries).ToList();
+
+                        if (stats.Count == 0)
                         {
-                            string containerServicePackageId = dcpkg.ServicePackageActivationId;
-                            string cpuId = $"{appName}_{containerServicePackageId}_cpu";
-                            string memId = $"{appName}_{containerServicePackageId}_mem";
+                            ObserverLogger.LogWarning("docker stats not returning any information.");
+                            return;
+                        }
 
-                            // Don't add new fruds if they already exists. These objects live across Observer runs.
-                            // Note: Their Data members will be cleared by ProcessDataReportHealth.
-                            if (!this.allCpuDataPercentage.Any(frud => frud.Id == cpuId))
+                        containerId = stats[0];
+                        repOrInst.ContainerId = containerId;
+
+                        foreach (string stat in stats)
+                        {
+                            token.ThrowIfCancellationRequested();
+
+                            if (stat.Contains("%"))
                             {
-                                this.allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId));
+                                double cpu_percent = double.Parse(stat.Replace("%", ""));
+                                this.allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
+                                ObserverLogger.LogInfo($"CPU% for container {containerId}: {cpu_percent}");
                             }
 
-                            if (!this.allMemDataMB.Any(frud => frud.Id == memId))
+                            if (stat.Contains("MiB"))
                             {
-                                this.allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId));
-                            }
-
-                            List<string> stats = line.Split(" ", StringSplitOptions.RemoveEmptyEntries).ToList();
-
-                            if (stats.Count == 0)
-                            {
-                                ObserverLogger.LogWarning("docker stats not returning any information.");
-                                return;
-                            }
-
-                            string containerid = stats[0];
-
-                            foreach (string stat in stats)
-                            {
-                                token.ThrowIfCancellationRequested();
-
-                                if (stat.Contains("%"))
-                                {
-                                    double cpu_percent = double.Parse(stat.Replace("%", ""));
-                                    this.allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
-                                    ObserverLogger.LogInfo($"CPU% for container {containerid}: {cpu_percent}");
-                                }
-
-                                if (stat.Contains("MiB"))
-                                {
-                                    double mem_working_set_mb = double.Parse(stat.Replace("MiB", ""));
-                                    this.allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
-                                    ObserverLogger.LogInfo($"Workingset MB for container {containerid}: {mem_working_set_mb}");
-                                }
+                                double mem_working_set_mb = double.Parse(stat.Replace("MiB", ""));
+                                this.allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
+                                ObserverLogger.LogInfo($"Workingset MB for container {containerId}: {mem_working_set_mb}");
                             }
                         }
+                        
+                        await Task.Delay(250);
                     }
-
-                    await Task.Delay(250);
                 }
 
                 monitorTimer.Stop();
@@ -202,44 +184,48 @@ namespace FabricObserver.Observers
 
             foreach (var app in this.deployedTargetList)
             {
-                var repOrInst = new ReplicaOrInstanceMonitoringInfo
+                foreach (var repOrInst in this.replicaOrInstanceList.Where(rep => rep.ApplicationName.OriginalString == app.TargetApp))
                 {
-                    ApplicationName = new Uri(app.TargetApp),
-                };
+                    string cpuId = $"{repOrInst.ServiceName}_cpu";
+                    string memId = $"{repOrInst.ServiceName}_mem";
+                    string healthReportPropCpu = $"{cpuId}_{NodeName}";
+                    string healthReportPropMem = $"{memId}_{NodeName}";
+                    var cpuFrudInst = this.allCpuDataPercentage.Find(cpu => cpu.Id == cpuId);
+                    var memFrudInst = this.allMemDataMB.Find(mem => mem.Id == memId);
 
-                foreach (var kvp in this.deployedCodePackagesDictionary.Where(c => c.Key == app.TargetApp))
-                {
-                    var deployedCodepackages = kvp.Value;
-
-                    foreach (var dcpkg in deployedCodepackages)
+                    if (!this.HealthReportProperties.Any(h => h == healthReportPropCpu)
+                        && cpuFrudInst.AverageDataValue >= app.CpuWarningLimitPercent)
                     {
-                        string cpuId = $"{app.TargetApp}_{dcpkg.ServicePackageActivationId}_cpu";
-                        string memId = $"{app.TargetApp}_{dcpkg.ServicePackageActivationId}_mem";
-
-                        foreach (var cpudata in this.allCpuDataPercentage.Where(a => a.Id == cpuId))
-                        {
-                            ProcessResourceDataReportHealth(
-                                   cpudata,
-                                   app.CpuErrorLimitPercent,
-                                   app.CpuWarningLimitPercent,
-                                   timeToLive,
-                                   HealthReportType.Application,
-                                   repOrInst);
-                        }
-
-                        foreach (var memdata in this.allMemDataMB.Where(a => a.Id == memId))
-                        {
-                            ProcessResourceDataReportHealth(
-                                   memdata,
-                                   app.MemoryErrorLimitMb,
-                                   app.MemoryWarningLimitMb,
-                                   timeToLive,
-                                   HealthReportType.Application,
-                                   repOrInst);
-                        }
+                        this.HealthReportProperties.Add(healthReportPropCpu);
                     }
+
+                    ProcessResourceDataReportHealth(
+                                cpuFrudInst,
+                                app.CpuErrorLimitPercent,
+                                app.CpuWarningLimitPercent,
+                                timeToLive,
+                                HealthReportType.Application,
+                                repOrInst);
+                   
+                    if (!this.HealthReportProperties.Any(h => h == healthReportPropMem)
+                        && memFrudInst.AverageDataValue >= app.MemoryWarningLimitMb)
+                    {
+                        this.HealthReportProperties.Add(healthReportPropMem);
+                    }
+
+                    ProcessResourceDataReportHealth(
+                                memFrudInst,
+                                app.MemoryErrorLimitMb,
+                                app.MemoryWarningLimitMb,
+                                timeToLive,
+                                HealthReportType.Application,
+                                repOrInst); 
                 }
             }
+
+            // Fill the list with new values each time you report. 
+            // FO uses these for health report gen and picks last item in list per run.
+            this.HealthReportProperties.Clear();
 
             return Task.FromResult(0);
         }
@@ -270,6 +256,21 @@ namespace FabricObserver.Observers
             if (this.deployedTargetList.Count > 0)
             {
                 this.deployedTargetList.Clear();
+            }
+
+            if (this.replicaOrInstanceList.Count > 0)
+            {
+                this.replicaOrInstanceList.Clear();
+            }
+
+            if (this.allCpuDataPercentage == null)
+            {
+                this.allCpuDataPercentage = new List<FabricResourceUsageData<double>>();
+            }
+
+            if (this.allMemDataMB == null)
+            {
+                this.allMemDataMB = new List<FabricResourceUsageData<double>>();
             }
 
             using Stream stream = new FileStream(
@@ -343,17 +344,13 @@ namespace FabricObserver.Observers
                         continue;
                     }
 
-                    if (!this.deployedCodePackagesDictionary.ContainsKey(application.TargetApp))
-                    {
-                        this.deployedCodePackagesDictionary.Add(application.TargetApp,
-                            containerhostedPkgs.ToList());
-                    }
-                    else
-                    {
-                        this.deployedCodePackagesDictionary[application.TargetApp] = containerhostedPkgs.ToList();
-                    }
-
                     this.deployedTargetList.Add(application);
+
+                    await SetInstanceOrReplicaMonitoringList(
+                        new Uri(application.TargetApp),
+                        null,
+                        ServiceFilterType.None,
+                        null).ConfigureAwait(false);
                 }
                 catch (Exception e) when (e is FabricException|| e is TimeoutException || e is OperationCanceledException)
                 {
@@ -382,6 +379,76 @@ namespace FabricObserver.Observers
                 && !this.ConfigurationFilePath.Contains(configDataFilename))
             {
                 this.ConfigurationFilePath = Path.Combine(ConfigPackagePath, configDataFilename);
+            }
+        }
+
+        private async Task SetInstanceOrReplicaMonitoringList(
+            Uri appName,
+            List<string> serviceFilterList,
+            ServiceFilterType filterType,
+            string appTypeName)
+        {
+            var deployedReplicaList = await FabricClientInstance.QueryManager.GetDeployedReplicaListAsync(NodeName, appName).ConfigureAwait(true);
+
+            foreach (var deployedReplica in deployedReplicaList)
+            {
+                ReplicaOrInstanceMonitoringInfo replicaInfo = null;
+
+                if (deployedReplica is DeployedStatefulServiceReplica statefulReplica
+                    && statefulReplica.ReplicaRole == ReplicaRole.Primary)
+                {
+                    replicaInfo = new ReplicaOrInstanceMonitoringInfo()
+                    {
+                        ApplicationName = appName,
+                        ApplicationTypeName = appTypeName,
+                        HostProcessId = statefulReplica.HostProcessId,
+                        ReplicaOrInstanceId = statefulReplica.ReplicaId,
+                        PartitionId = statefulReplica.Partitionid,
+                        ServiceName = statefulReplica.ServiceName,
+                        ServicePackageActivationId = statefulReplica.ServicePackageActivationId,
+                    };
+
+                    if (serviceFilterList != null
+                        && filterType != ServiceFilterType.None)
+                    {
+                        bool isInFilterList = serviceFilterList.Any(s => statefulReplica.ServiceName.OriginalString.ToLower().Contains(s.ToLower()));
+
+                        switch (filterType)
+                        {
+                            case ServiceFilterType.Include when !isInFilterList:
+                            case ServiceFilterType.Exclude when isInFilterList:
+                                continue;
+                        }
+                    }
+                }
+                else if (deployedReplica is DeployedStatelessServiceInstance statelessInstance)
+                {
+                    replicaInfo = new ReplicaOrInstanceMonitoringInfo()
+                    {
+                        ApplicationName = appName,
+                        ApplicationTypeName = appTypeName,
+                        HostProcessId = statelessInstance.HostProcessId,
+                        ReplicaOrInstanceId = statelessInstance.InstanceId,
+                        PartitionId = statelessInstance.Partitionid,
+                        ServiceName = statelessInstance.ServiceName,
+                        ServicePackageActivationId = statelessInstance.ServicePackageActivationId,
+                    };
+
+                    if (serviceFilterList != null
+                        && filterType != ServiceFilterType.None)
+                    {
+                        bool isInFilterList = serviceFilterList.Any(s => statelessInstance.ServiceName.OriginalString.ToLower().Contains(s.ToLower()));
+
+                        switch (filterType)
+                        {
+                            case ServiceFilterType.Include when !isInFilterList:
+                            case ServiceFilterType.Exclude when isInFilterList:
+                                continue;
+                        }
+                    }
+                }
+                
+                this.replicaOrInstanceList.Add(replicaInfo);
             }
         }
     }
