@@ -68,8 +68,9 @@ namespace FabricObserver.Observers
             {
                 // This is how long each measurement sequence for each container can last.
                 TimeSpan duration = TimeSpan.FromSeconds(10);
-                string cpuId = $"{repOrInst.ServiceName}_cpu";
-                string memId = $"{repOrInst.ServiceName}_mem";
+                string serviceName = repOrInst.ServiceName.OriginalString.Replace(repOrInst.ApplicationName.OriginalString, "").Replace("/", "");
+                string cpuId = $"{serviceName}_cpu";
+                string memId = $"{serviceName}_mem";
                 string containerId = string.Empty;
 
                 if (!this.allCpuDataPercentage.Any(frud => frud.Id == cpuId))
@@ -186,15 +187,15 @@ namespace FabricObserver.Observers
             {
                 foreach (var repOrInst in this.replicaOrInstanceList.Where(rep => rep.ApplicationName.OriginalString == app.TargetApp))
                 {
-                    string cpuId = $"{repOrInst.ServiceName}_cpu";
-                    string memId = $"{repOrInst.ServiceName}_mem";
+                    string serviceName = repOrInst.ServiceName.OriginalString.Replace(app.TargetApp, "").Replace("/", "");
+                    string cpuId = $"{serviceName}_cpu";
+                    string memId = $"{serviceName}_mem";
                     string healthReportPropCpu = $"{cpuId}_{NodeName}";
                     string healthReportPropMem = $"{memId}_{NodeName}";
                     var cpuFrudInst = this.allCpuDataPercentage.Find(cpu => cpu.Id == cpuId);
                     var memFrudInst = this.allMemDataMB.Find(mem => mem.Id == memId);
 
-                    if (!this.HealthReportProperties.Any(h => h == healthReportPropCpu)
-                        && cpuFrudInst.AverageDataValue >= app.CpuWarningLimitPercent)
+                    if (!this.HealthReportProperties.Any(h => h == healthReportPropCpu))
                     {
                         this.HealthReportProperties.Add(healthReportPropCpu);
                     }
@@ -207,8 +208,7 @@ namespace FabricObserver.Observers
                                 HealthReportType.Application,
                                 repOrInst);
                    
-                    if (!this.HealthReportProperties.Any(h => h == healthReportPropMem)
-                        && memFrudInst.AverageDataValue >= app.MemoryWarningLimitMb)
+                    if (!this.HealthReportProperties.Any(h => h == healthReportPropMem))
                     {
                         this.HealthReportProperties.Add(healthReportPropMem);
                     }
