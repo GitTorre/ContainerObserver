@@ -111,7 +111,7 @@ Example script:
 
 ```Powershell
 $path = "[sourcedir]\ContainerObserver\bin\Debug\netcoreapp3.1\[win-x64 or linux-x64, depending on your build target...]"
-Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3 -TimeoutSec 1800
+Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV39 -TimeoutSec 1800
 Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3
-New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.0.8
+New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.0.9
 ```
