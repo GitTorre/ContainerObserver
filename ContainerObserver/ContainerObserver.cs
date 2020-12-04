@@ -1,16 +1,16 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using FabricObserver.Observers.Utilities;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using FabricObserver.Observers.MachineInfoModel;
 using System.IO;
 using System.Fabric.Health;
 using System.Fabric.Query;
 using System.Fabric;
 using System.Runtime.InteropServices;
+using FabricObserver.Observers.Utilities;
+using FabricObserver.Observers.MachineInfoModel;
 
 namespace FabricObserver.Observers
 {
@@ -32,9 +32,11 @@ namespace FabricObserver.Observers
             get; set;
         }
 
-        public ContainerObserver()
+        public ContainerObserver(FabricClient fabricClient, StatelessServiceContext context)
+            : base(fabricClient, context)
         {
-            ConfigPackagePath = MachineInfoModel.ConfigSettings.ConfigPackagePath;
+            var configSettings = new MachineInfoModel.ConfigSettings(context);
+            ConfigPackagePath = configSettings.ConfigPackagePath;
             this.userTargetList = new List<ApplicationInfo>();
             this.deployedTargetList = new List<ApplicationInfo>();
             this.replicaOrInstanceList = new List<ReplicaOrInstanceMonitoringInfo>();
@@ -115,55 +117,57 @@ namespace FabricObserver.Observers
                         RedirectStandardError = false,
                     };
 
-                    using Process p = Process.Start(ps);
-                    List<string> output = new List<string>();
-                    string l;
-
-                    while ((l = p.StandardOutput.ReadLine()) != null)
+                    using (Process p = Process.Start(ps))
                     {
-                        output.Add(l);
-                    }
+                        List<string> output = new List<string>();
+                        string l;
 
-                    foreach (string line in output)
-                    {
-                        token.ThrowIfCancellationRequested();
-
-                        if (!line.Contains(repOrInst.ServicePackageActivationId))
+                        while ((l = p.StandardOutput.ReadLine()) != null)
                         {
-                            continue;
+                            output.Add(l);
                         }
 
-                        List<string> stats = line.Split(" ", StringSplitOptions.RemoveEmptyEntries).ToList();
-
-                        if (stats.Count == 0)
-                        {
-                            ObserverLogger.LogWarning("docker stats not returning any information.");
-                            return;
-                        }
-
-                        containerId = stats[0];
-                        repOrInst.ContainerId = containerId;
-
-                        foreach (string stat in stats)
+                        foreach (string line in output)
                         {
                             token.ThrowIfCancellationRequested();
 
-                            if (stat.Contains("%"))
+                            if (!line.Contains(repOrInst.ServicePackageActivationId))
                             {
-                                double cpu_percent = double.Parse(stat.Replace("%", ""));
-                                this.allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
-                                ObserverLogger.LogInfo($"CPU% for container {containerId}: {cpu_percent}");
+                                continue;
                             }
 
-                            if (stat.Contains("MiB"))
+                            List<string> stats = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+
+                            if (stats.Count == 0)
                             {
-                                double mem_working_set_mb = double.Parse(stat.Replace("MiB", ""));
-                                this.allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
-                                ObserverLogger.LogInfo($"Workingset MB for container {containerId}: {mem_working_set_mb}");
+                                ObserverLogger.LogWarning("docker stats not returning any information.");
+                                return;
                             }
+
+                            containerId = stats[0];
+                            repOrInst.ContainerId = containerId;
+
+                            foreach (string stat in stats)
+                            {
+                                token.ThrowIfCancellationRequested();
+
+                                if (stat.Contains("%"))
+                                {
+                                    double cpu_percent = double.Parse(stat.Replace("%", ""));
+                                    this.allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
+                                    ObserverLogger.LogInfo($"CPU% for container {containerId}: {cpu_percent}");
+                                }
+
+                                if (stat.Contains("MiB"))
+                                {
+                                    double mem_working_set_mb = double.Parse(stat.Replace("MiB", ""));
+                                    this.allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
+                                    ObserverLogger.LogInfo($"Workingset MB for container {containerId}: {mem_working_set_mb}");
+                                }
+                            }
+
+                            await Task.Delay(250);
                         }
-                        
-                        await Task.Delay(250);
                     }
                 }
 
@@ -273,16 +277,13 @@ namespace FabricObserver.Observers
                 this.allMemDataMB = new List<FabricResourceUsageData<double>>();
             }
 
-            using Stream stream = new FileStream(
-                this.ConfigurationFilePath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read);
-
-            if (stream.Length > 0
-                && JsonHelper.IsJson<List<ApplicationInfo>>(File.ReadAllText(this.ConfigurationFilePath)))
+            using (Stream stream = new FileStream(this.ConfigurationFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                this.userTargetList.AddRange(JsonHelper.ReadFromJsonStream<ApplicationInfo[]>(stream));
+                if (stream.Length > 0
+                    && JsonHelper.IsJson<List<ApplicationInfo>>(File.ReadAllText(this.ConfigurationFilePath)))
+                {
+                    this.userTargetList.AddRange(JsonHelper.ReadFromJsonStream<ApplicationInfo[]>(stream));
+                }
             }
 
             // Are any of the config-supplied apps deployed?.
