@@ -1,6 +1,6 @@
 # ContainerObserver
 
-This is an implementation of a [FabricObserver](https://aka.ms/sf/fabricobserver) plugin that monitors dockerd-process-hosted Service Fabric app container instances for CPU and Memory use. It demonstrates how to write FabricObserver plugins that extend FabricObserver's capabilities and then deploy FO to your cluster from the plugin build output directory (which is effectively a decompressed sfpkg). You can learn more about the FabricObserver plugin model [here](https://github.com/microsoft/service-fabric-observer/tree/master/SampleObserverPlugin) and [here](https://github.com/microsoft/service-fabric-observer/blob/master/Documentation/Plugins.md).
+This is an implementation of a [FabricObserver](https://aka.ms/sf/fabricobserver) plugin, built as a .NET Standard 2.0 library, that monitors dockerd-hosted Service Fabric app container instances for CPU and Memory use. It demonstrates how to write FabricObserver plugins that extend FabricObserver's capabilities and then deploy FO to your cluster from the plugin build output directory (which is effectively a decompressed sfpkg). You can learn more about the FabricObserver plugin model [here](https://github.com/microsoft/service-fabric-observer/tree/master/SampleObserverPlugin) and [here](https://github.com/microsoft/service-fabric-observer/blob/master/Documentation/Plugins.md).
 
 ### What it does
 ContainerObserver monitors and reports on machine resource use - CPU% and Private Working Set MB in this impl (extend based on your needs) - emitting warnings or errors based on configurable threshold values for Service Fabric docker container apps running in Windows and Linux clusters.  
@@ -30,7 +30,7 @@ ContainerObserver monitors and reports on machine resource use - CPU% and Privat
 The core idea is that writing an observer plugin is an equivalent experience to writing one inside the FabricObserver project itself.
 
 ``` C#
-
+using System.Fabric;
 using System.Threading;
 using System.Threading.Tasks;
 using FabricObserver.Observers.Utilities;
@@ -40,7 +40,8 @@ namespace FabricObserver.Observers
 {
     public class ContainerObserver : ObserverBase
     {
-        public SampleNewObserver()
+        public ContainerObserver(FabricClient fabricClient, StatelessServiceContext context)
+            : base(fabricClient, context)
         {
             //... impl.
         }
@@ -71,23 +72,24 @@ For 2., it's designed to be a trivial - and required - implementation:
 ``` C#
 using Microsoft.Extensions.DependencyInjection;
 using FabricObserver.Observers;
+using System.Fabric;
 
 [assembly: FabricObserver.FabricObserverStartup(typeof(ContainerObserverStartup))]
 namespace FabricObserver.Observers
 {
     public class ContainerObserverStartup : IFabricObserverStartup
     {
-        public void ConfigureServices(IServiceCollection services)
+        public void ConfigureServices(IServiceCollection services, FabricClient fabricClient, StatelessServiceContext context)
         {
-            services.AddScoped(typeof(ObserverBase), typeof(ContainerObserver));
+            services.AddScoped(typeof(ObserverBase), s => new ContainerObserver(fabricClient, context));
         }
     }
 }
 ```
 
-When you build the ContainerObserver plugin project, all files will be placed into the correct locations in the output directory. E.g., C:\Users\me\source\repos\ContainerObserver\ContainerObserver\bin\Release\netcoreapp3.1. ContainerObserver.dll, Settings.xml, and ApplicationManifest_Modified.xml files will be placed (and renamed in the case of ApplicationManifest) into the correct locations. In fact, this directory will contain what is effectively an sfpkg file and folder structure:  
+When you build the ContainerObserver plugin project, all files will be placed into the correct locations in the output directory. E.g., C:\Users\me\source\repos\ContainerObserver\ContainerObserver\bin\Release\netstandard2.0\win-x64. ContainerObserver.dll, Settings.xml, and ApplicationManifest_Modified.xml files will be placed (and renamed in the case of ApplicationManifest) into the correct locations. In fact, this directory will contain what is effectively an sfpkg file and folder structure:  
 ```
-[sourcedir]\ContainerObserver\bin\release\netcoreapp3.1  
+[sourcedir]\ContainerObserver\bin\release\netstandard2.0\win-x64  
 │   ApplicationManifest.xml  
 │  
 └───FabricObserverPkg  
@@ -109,8 +111,8 @@ When you build the ContainerObserver plugin project, all files will be placed in
 Example script: 
 
 ```Powershell
-$path = "[sourcedir]\ContainerObserver\bin\Debug\netcoreapp3.1\[win-x64 or linux-x64, depending on your build target...]"
-Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV311 -TimeoutSec 1800
-Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV311
-New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.0.11
+$path = "[sourcedir]\ContainerObserver\bin\Debug\netstandard2.0\[win-x64 or linux-x64, depending on your OS target]"
+Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV31 -TimeoutSec 1800
+Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV31
+New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.1.0
 ```
