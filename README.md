@@ -7,7 +7,7 @@ ContainerObserver monitors and reports on machine resource use - CPU% and Privat
 
 ![SFX Warning](/ContainerObserver/SFX.png)  
 
-**Note: ContainerObserver must be hosted in an elevated FabricObserver process on Windows. When you build this project, the related SF configuration files will be set to run FabricObserver as Admin on Windows. See ServiceManifest and ApplicationManifest in build output folder. For Linux, we solved this problem by implementing a Capabilities-laced binary that can only run one command as root, so FabricObserver itself will run as standard user on Linux. Windows does not have anything like Linux's Capabilities model, so it seems that running FO as Admin is the only recourse for Windows deployments.**  
+**Note: ContainerObserver must be hosted in an elevated FabricObserver process on Windows. When you build this project, the related SF configuration files will be set to run FabricObserver as Admin on Windows. See ApplicationManifest_Modified.xml in source folder. For Linux, we solved this problem by implementing a Capabilities-laced binary that can only run one command as root, so FabricObserver itself will run as standard user on Linux. Windows does not have anything like Linux's Capabilities model, so it seems that running FO as Admin is the only recourse for Windows deployments.**  
 
 ### FabricObserver Plugin Model  
 
