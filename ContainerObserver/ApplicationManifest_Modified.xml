@@ -11,7 +11,7 @@
     <Parameter Name="AppObserverEnabled" DefaultValue="true" />
     <Parameter Name="CertificateObserverEnabled" DefaultValue="true" />
     <Parameter Name="DiskObserverEnabled" DefaultValue="true" />
-    <Parameter Name="FabricSystemObserverEnabled" DefaultValue="true" />
+    <Parameter Name="FabricSystemObserverEnabled" DefaultValue="false" />
     <Parameter Name="NetworkObserverEnabled" DefaultValue="false" />
     <Parameter Name="NodeObserverEnabled" DefaultValue="true" />
     <Parameter Name="OSObserverEnabled" DefaultValue="true" />
@@ -36,13 +36,13 @@
     <Parameter Name="NodeObserverEnableVerboseLogging" DefaultValue="false" />
     <Parameter Name="OSObserverEnableVerboseLogging" DefaultValue="false" />
     <Parameter Name="SFConfigurationObserverEnableVerboseLogging" DefaultValue="false" />
-    <Parameter Name="ContainerObserverEnableVerboseLogging" DefaultValue="true" />
+    <Parameter Name="ContainerObserverEnableVerboseLogging" DefaultValue="false" />
     <!-- Observer Monitor Durations (TimeSpan format, e.g., 00:00:00) -->
-    <Parameter Name="AppObserverMonitorDuration" DefaultValue="00:00:10" />
+    <Parameter Name="AppObserverMonitorDuration" DefaultValue="00:00:05" />
     <Parameter Name="DiskObserverMonitorDuration" DefaultValue="00:00:05" />
-    <Parameter Name="FabricSystemObserverMonitorDuration" DefaultValue="00:00:10" />
-    <Parameter Name="NodeObserverMonitorDuration" DefaultValue="00:00:30" />
-    <Parameter Name="ContainerObserverMonitorDuration" DefaultValue="00:00:15" />
+    <Parameter Name="FabricSystemObserverMonitorDuration" DefaultValue="00:00:05" />
+    <Parameter Name="NodeObserverMonitorDuration" DefaultValue="00:00:05" />
+    <Parameter Name="ContainerObserverMonitorDuration" DefaultValue="00:00:05" />
     <!-- Observer Run Intervals (TimeSpan format, e.g., 0.00:00:00) -->
     <Parameter Name="AppObserverRunInterval" DefaultValue="" />
     <Parameter Name="CertificateObserverRunInterval" DefaultValue="1.00:00:00" />

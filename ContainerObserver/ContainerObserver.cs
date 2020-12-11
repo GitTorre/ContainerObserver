@@ -231,7 +231,7 @@ namespace FabricObserver.Observers
             // FO uses these for health report gen and picks last item in list per run.
             this.HealthReportProperties.Clear();
 
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
         // Runs each time ObserveAsync is run to ensure that any new app targets and config changes will
@@ -245,7 +245,7 @@ namespace FabricObserver.Observers
                 WriteToLogWithLevel(
                     ObserverName,
                     $"Will not observe resource consumption as no configuration parameters have been supplied. | {NodeName}",
-                    LogLevel.Information);
+                    LogLevel.Warning);
 
                 return false;
             }
@@ -292,7 +292,7 @@ namespace FabricObserver.Observers
                 WriteToLogWithLevel(
                     ObserverName,
                     $"Will not observe resource consumption as no configuration parameters have been supplied. | {NodeName}",
-                    LogLevel.Information);
+                    LogLevel.Warning);
 
                 return false;
             }
