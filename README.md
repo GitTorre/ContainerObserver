@@ -15,7 +15,17 @@ ContainerObserver monitors and reports on machine resource use - CPU% and Privat
 **Note: make sure you know if .NET Core 3.1 is installed on the target server. If it is not, then you must use the SelfContained FO nuget package, else you can use FrameworkDependent FO nuget package. This is very important.**
 - Clone repo.
 - Install [.Net Core 3.1](https://dotnet.microsoft.com/download/dotnet-core/3.1).
-- Download and install the latest Windows or Linux FabricObserver **nupkg** file from the [FabricObserver repo's Releases section](https://github.com/microsoft/service-fabric-observer/releases).  **NOTE: ContainerObserver requires FO 3.1.0 and higher**.
+- You can find the Microsoft-signed packages in the nuget.org gallery [here](https://www.nuget.org/profiles/ServiceFabricApps) or just run this in the package manager console: 
+
+```
+Install-Package Microsoft.ServiceFabricApps.FabricObserver.Windows.SelfContained -Version 3.1.2 
+
+or for Linux:
+
+Install-Package Microsoft.ServiceFabricApps.FabricObserver.Linux.SelfContained -Version 3.1.2  
+```
+
+**NOTE: ContainerObserver requires FO 3.1.0 and higher**.
 - Update the ContainerObserver CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update ApplicationManifest_Modified.xml's ApplicationTypeVersion and ServiceManifestVersion to match that of the FabricObserver nupkg you're using, and the parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.  
 
 **NOTE: For linux deployments, you must modify ContainerObserver.csproj to build linux-x64 (&lt;RuntimeIdentifier&gt;linux-x64&lt;/RuntimeIdentifier&gt;) also add the following to ApplicationManifest_Modified.xml**: 
@@ -114,7 +124,7 @@ Example script:
 
 ```Powershell
 $path = "[sourcedir]\ContainerObserver\bin\Debug\netstandard2.0\[win-x64 or linux-x64, depending on your OS target]"
-Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV311 -TimeoutSec 1800
-Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV311
-New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.1.1
+Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV312 -TimeoutSec 1800
+Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV312
+New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.1.2
 ```
