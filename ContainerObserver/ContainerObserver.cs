@@ -37,9 +37,9 @@ namespace FabricObserver.Observers
         {
             var configSettings = new MachineInfoModel.ConfigSettings(context);
             ConfigPackagePath = configSettings.ConfigPackagePath;
-            this.userTargetList = new List<ApplicationInfo>();
-            this.deployedTargetList = new List<ApplicationInfo>();
-            this.replicaOrInstanceList = new List<ReplicaOrInstanceMonitoringInfo>();
+            userTargetList = new List<ApplicationInfo>();
+            deployedTargetList = new List<ApplicationInfo>();
+            replicaOrInstanceList = new List<ReplicaOrInstanceMonitoringInfo>(); 
         }
 
         // OsbserverManager passes in a special token to ObserveAsync and ReportAsync that enables it to stop this observer outside of
@@ -66,7 +66,7 @@ namespace FabricObserver.Observers
                 644e19852fa0        sf-38-e6837395-6951-4559-acbc-98146d9b3480_52adab36-a1c0-4ea6-95b4-67e51498fb4e   0.01%               53.25MiB            1.16MB / 526kB      28.4MB / 25.8MB
              */
 
-            foreach (var repOrInst in this.replicaOrInstanceList)
+            foreach (var repOrInst in replicaOrInstanceList)
             {
                 // This is how long each measurement sequence for each container can last.
                 TimeSpan duration = TimeSpan.FromSeconds(10);
@@ -75,14 +75,14 @@ namespace FabricObserver.Observers
                 string memId = $"{serviceName}_mem";
                 string containerId = string.Empty;
 
-                if (!this.allCpuDataPercentage.Any(frud => frud.Id == cpuId))
+                if (!allCpuDataPercentage.Any(frud => frud.Id == cpuId))
                 {
-                    this.allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId));
+                    allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId));
                 }
 
-                if (!this.allMemDataMB.Any(frud => frud.Id == memId))
+                if (!allMemDataMB.Any(frud => frud.Id == memId))
                 {
-                    this.allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId));
+                    allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId));
                 }
 
                 if (ConfigurationSettings.MonitorDuration > TimeSpan.MinValue)
@@ -154,14 +154,14 @@ namespace FabricObserver.Observers
                                 if (stat.Contains("%"))
                                 {
                                     double cpu_percent = double.Parse(stat.Replace("%", ""));
-                                    this.allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
+                                    allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
                                     ObserverLogger.LogInfo($"CPU% for container {containerId}: {cpu_percent}");
                                 }
 
                                 if (stat.Contains("MiB"))
                                 {
                                     double mem_working_set_mb = double.Parse(stat.Replace("MiB", ""));
-                                    this.allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
+                                    allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
                                     ObserverLogger.LogInfo($"Workingset MB for container {containerId}: {mem_working_set_mb}");
                                 }
                             }
@@ -185,24 +185,19 @@ namespace FabricObserver.Observers
 
         public override Task ReportAsync(CancellationToken token)
         {
-            TimeSpan timeToLive = SetHealthReportTimeToLive();
+            TimeSpan timeToLive = GetHealthReportTimeToLive();
 
-            foreach (var app in this.deployedTargetList)
+            foreach (var app in deployedTargetList)
             {
-                foreach (var repOrInst in this.replicaOrInstanceList.Where(rep => rep.ApplicationName.OriginalString == app.TargetApp))
+                foreach (var repOrInst in replicaOrInstanceList.Where(rep => rep.ApplicationName.OriginalString == app.TargetApp))
                 {
                     string serviceName = repOrInst.ServiceName.OriginalString.Replace(app.TargetApp, "").Replace("/", "");
                     string cpuId = $"{serviceName}_cpu";
                     string memId = $"{serviceName}_mem";
                     string healthReportPropCpu = $"{cpuId}_{NodeName}";
                     string healthReportPropMem = $"{memId}_{NodeName}";
-                    var cpuFrudInst = this.allCpuDataPercentage.Find(cpu => cpu.Id == cpuId);
-                    var memFrudInst = this.allMemDataMB.Find(mem => mem.Id == memId);
-
-                    if (!this.HealthReportProperties.Any(h => h == healthReportPropCpu))
-                    {
-                        this.HealthReportProperties.Add(healthReportPropCpu);
-                    }
+                    var cpuFrudInst = allCpuDataPercentage.Find(cpu => cpu.Id == cpuId);
+                    var memFrudInst = allMemDataMB.Find(mem => mem.Id == memId);
 
                     ProcessResourceDataReportHealth(
                                 cpuFrudInst,
@@ -211,11 +206,6 @@ namespace FabricObserver.Observers
                                 timeToLive,
                                 HealthReportType.Application,
                                 repOrInst);
-                   
-                    if (!this.HealthReportProperties.Any(h => h == healthReportPropMem))
-                    {
-                        this.HealthReportProperties.Add(healthReportPropMem);
-                    }
 
                     ProcessResourceDataReportHealth(
                                 memFrudInst,
@@ -227,10 +217,6 @@ namespace FabricObserver.Observers
                 }
             }
 
-            // Fill the list with new values each time you report. 
-            // FO uses these for health report gen and picks last item in list per run.
-            this.HealthReportProperties.Clear();
-
             return Task.CompletedTask;
         }
 
@@ -240,7 +226,7 @@ namespace FabricObserver.Observers
         {
             SetConfigurationFilePath();
 
-            if (!File.Exists(this.ConfigurationFilePath))
+            if (!File.Exists(ConfigurationFilePath))
             {
                 WriteToLogWithLevel(
                     ObserverName,
@@ -252,42 +238,42 @@ namespace FabricObserver.Observers
 
             // This code runs each time ObserveAsync is called,
             // so clear app list and deployed replica/instance list in case a new app has been added to watch list.
-            if (this.userTargetList.Count > 0)
+            if (userTargetList.Count > 0)
             {
-                this.userTargetList.Clear();
+                userTargetList.Clear();
             }
 
-            if (this.deployedTargetList.Count > 0)
+            if (deployedTargetList.Count > 0)
             {
-                this.deployedTargetList.Clear();
+                deployedTargetList.Clear();
             }
 
-            if (this.replicaOrInstanceList.Count > 0)
+            if (replicaOrInstanceList.Count > 0)
             {
-                this.replicaOrInstanceList.Clear();
+                replicaOrInstanceList.Clear();
             }
 
-            if (this.allCpuDataPercentage == null)
+            if (allCpuDataPercentage == null)
             {
-                this.allCpuDataPercentage = new List<FabricResourceUsageData<double>>();
+                allCpuDataPercentage = new List<FabricResourceUsageData<double>>();
             }
 
-            if (this.allMemDataMB == null)
+            if (allMemDataMB == null)
             {
-                this.allMemDataMB = new List<FabricResourceUsageData<double>>();
+                allMemDataMB = new List<FabricResourceUsageData<double>>();
             }
 
-            using (Stream stream = new FileStream(this.ConfigurationFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (Stream stream = new FileStream(ConfigurationFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 if (stream.Length > 0
-                    && JsonHelper.IsJson<List<ApplicationInfo>>(File.ReadAllText(this.ConfigurationFilePath)))
+                    && JsonHelper.IsJson<List<ApplicationInfo>>(File.ReadAllText(ConfigurationFilePath)))
                 {
-                    this.userTargetList.AddRange(JsonHelper.ReadFromJsonStream<ApplicationInfo[]>(stream));
+                    userTargetList.AddRange(JsonHelper.ReadFromJsonStream<ApplicationInfo[]>(stream));
                 }
             }
 
             // Are any of the config-supplied apps deployed?.
-            if (this.userTargetList.Count == 0)
+            if (userTargetList.Count == 0)
             {
                 WriteToLogWithLevel(
                     ObserverName,
@@ -299,7 +285,7 @@ namespace FabricObserver.Observers
 
             int settingSFail = 0;
 
-            foreach (var application in this.userTargetList)
+            foreach (var application in userTargetList)
             {
                 token.ThrowIfCancellationRequested();
 
@@ -318,7 +304,7 @@ namespace FabricObserver.Observers
                 }
 
                 // No required settings supplied for deployed application(s).
-                if (settingSFail == this.userTargetList.Count)
+                if (settingSFail == userTargetList.Count)
                 {
                     return false;
                 }
@@ -345,7 +331,7 @@ namespace FabricObserver.Observers
                         continue;
                     }
 
-                    this.deployedTargetList.Add(application);
+                    deployedTargetList.Add(application);
 
                     await SetInstanceOrReplicaMonitoringList(
                         new Uri(application.TargetApp),
@@ -358,7 +344,7 @@ namespace FabricObserver.Observers
                 }
             }
 
-            foreach (var app in this.deployedTargetList)
+            foreach (var app in deployedTargetList)
             {
                 token.ThrowIfCancellationRequested();
 
@@ -377,9 +363,9 @@ namespace FabricObserver.Observers
                 "ConfigFileName");
 
             if (!string.IsNullOrEmpty(configDataFilename) 
-                && !this.ConfigurationFilePath.Contains(configDataFilename))
+                && !ConfigurationFilePath.Contains(configDataFilename))
             {
-                this.ConfigurationFilePath = Path.Combine(ConfigPackagePath, configDataFilename);
+                ConfigurationFilePath = Path.Combine(ConfigPackagePath, configDataFilename);
             }
         }
 
@@ -449,7 +435,7 @@ namespace FabricObserver.Observers
                     }
                 }
                 
-                this.replicaOrInstanceList.Add(replicaInfo);
+                replicaOrInstanceList.Add(replicaInfo);
             }
         }
     }
