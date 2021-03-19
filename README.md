@@ -18,7 +18,27 @@ ContainerObserver monitors and reports on machine resource use - CPU% and Privat
 
 - Install [.Net Core 3.1](https://dotnet.microsoft.com/download/dotnet-core/3.1) if you haven't already.
 - Clone repo.
-- Update the ContainerObserver CPU/Mem threshold values in the [containerobserver.config.json](/ContainerObserver/containerobserver.config.json) file. Update ContainerObserver basic settings in [ApplicationManifest_Modified.xml](/ContainerObserver/ApplicationManifest_Modified.xml) (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update ApplicationManifest_Modified.xml's ApplicationTypeVersion and ServiceManifestVersion to match that of the FabricObserver nupkg you're using, and the parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.
+- Update the ContainerObserver appTarget and CPU/Mem threshold values in the [containerobserver.config.json](/ContainerObserver/containerobserver.config.json) file. 
+
+Note that you can supply 
+ 
+ ```JSON 
+ "targetApp":"*",
+```  
+setting which means all container app targets. You can then filter which apps to target by including a 
+
+```JSON 
+ "appIncludeList":"fabric:/someApp, fabric:/someOtherApp", 
+ ``` 
+ or a  
+ 
+ ```JSON 
+"appExcludeList":"fabric:/someApp, fabric:/someOtherApp", 
+```
+
+You choose how you want to filter the app target collection. This makes it really easy to specify the same settings for multiple apps. Also, if you supply specific app settings as well that include different values for the same settings supplied in the all-apps config, then the specific ones will override the global ones and the global settings not specified in the specific app target sections will be applied to the specific app targets. 
+
+- Update ContainerObserver basic settings in [ApplicationManifest_Modified.xml](/ContainerObserver/ApplicationManifest_Modified.xml) (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update ApplicationManifest_Modified.xml's ApplicationTypeVersion and ServiceManifestVersion to match that of the FabricObserver nupkg you're using, and the parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.
 **NOTE: For linux deployments, you must modify ContainerObserver.csproj to build linux-x64 (&lt;RuntimeIdentifier&gt;linux-x64&lt;/RuntimeIdentifier&gt;) also add the following to ApplicationManifest_Modified.xml**: 
 ```xml
     </ConfigOverrides>
