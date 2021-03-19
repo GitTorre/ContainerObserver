@@ -18,7 +18,7 @@ ContainerObserver monitors and reports on machine resource use - CPU% and Privat
 
 - Install [.Net Core 3.1](https://dotnet.microsoft.com/download/dotnet-core/3.1) if you haven't already.
 - Clone repo.
-- Update the ContainerObserver CPU/Mem threshold values in ApplicationManifest_Modified.xml file (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update ApplicationManifest_Modified.xml's ApplicationTypeVersion and ServiceManifestVersion to match that of the FabricObserver nupkg you're using, and the parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.
+- Update the ContainerObserver CPU/Mem threshold values in the [containerobserver.config.json](/ContainerObserver/containerobserver.config.json) file. Update ContainerObserver basic settings in [ApplicationManifest_Modified.xml](/ContainerObserver/ApplicationManifest_Modified.xml) (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update ApplicationManifest_Modified.xml's ApplicationTypeVersion and ServiceManifestVersion to match that of the FabricObserver nupkg you're using, and the parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.
 **NOTE: For linux deployments, you must modify ContainerObserver.csproj to build linux-x64 (&lt;RuntimeIdentifier&gt;linux-x64&lt;/RuntimeIdentifier&gt;) also add the following to ApplicationManifest_Modified.xml**: 
 ```xml
     </ConfigOverrides>
