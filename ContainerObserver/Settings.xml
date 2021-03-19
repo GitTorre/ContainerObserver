@@ -216,8 +216,8 @@
     <Parameter Name="EnableEtw" Value="" MustOverride="true" />
     <Parameter Name="EnableVerboseLogging" Value="" MustOverride="true" />
     <Parameter Name="EnableWindowsAutoUpdateCheck" Value="" MustOverride="true" />
-    <Parameter Name="ClusterOperationTimeoutSeconds" Value="120" />
     <Parameter Name="RunInterval" Value="" MustOverride="true" />
+    <Parameter Name="ClusterOperationTimeoutSeconds" Value="120" />
   </Section>
   <Section Name="SFConfigurationObserverConfiguration">
     <Parameter Name="Enabled" Value="" MustOverride="true" />

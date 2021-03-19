@@ -1,11 +1,7 @@
 [
   {
-    "targetApp": "fabric:/ContainerFoo",
-    "cpuWarningLimitPercent": 10,
-    "memoryWarningLimitMB": 50
-  },
-  {
-    "targetApp": "fabric:/ContainerFoo2",
+    "targetApp": "*",
+    "appIncludeList": "fabric:/ContainerFoo, fabric:/ContainerFoo2",
     "cpuWarningLimitPercent": 10,
     "memoryWarningLimitMB": 50
   }

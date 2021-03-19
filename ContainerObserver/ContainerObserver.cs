@@ -20,11 +20,11 @@ namespace FabricObserver.Observers
         private List<FabricResourceUsageData<double>> allMemDataMB;
 
         // userTargetList is the list of ApplicationInfo objects representing apps supplied in configuration.
-        private List<ApplicationInfo> userTargetList;
+        private readonly List<ApplicationInfo> userTargetList;
 
         // deployedTargetList is the list of ApplicationInfo objects representing currently deployed applications in the user-supplied list.
-        private List<ApplicationInfo> deployedTargetList;
-        private List<ReplicaOrInstanceMonitoringInfo> replicaOrInstanceList;
+        private readonly List<ApplicationInfo> deployedTargetList;
+        private readonly List<ReplicaOrInstanceMonitoringInfo> replicaOrInstanceList;
         private string ConfigurationFilePath = string.Empty;
 
         public string ConfigPackagePath
@@ -48,8 +48,7 @@ namespace FabricObserver.Observers
         {
             // If set, this observer will only run during the supplied interval.
             // See Settings.xml, CertificateObserverConfiguration section, RunInterval parameter for an example.
-            if (RunInterval > TimeSpan.MinValue
-                && DateTime.Now.Subtract(LastRunDateTime) < RunInterval)
+            if (RunInterval > TimeSpan.MinValue && DateTime.Now.Subtract(LastRunDateTime) < RunInterval)
             {
                 return;
             }
@@ -272,7 +271,6 @@ namespace FabricObserver.Observers
                 }
             }
 
-            // Are any of the config-supplied apps deployed?.
             if (userTargetList.Count == 0)
             {
                 WriteToLogWithLevel(
@@ -283,41 +281,123 @@ namespace FabricObserver.Observers
                 return false;
             }
 
-            int settingSFail = 0;
+            // Support for specifying single configuration item for all or * applications.
+            if (userTargetList != null && userTargetList.Any(app => app.TargetApp?.ToLower() == "all" || app.TargetApp == "*"))
+            {
+                ApplicationInfo application = userTargetList.Find(app => app.TargetApp?.ToLower() == "all" || app.TargetApp == "*");
+
+                var appList = await FabricClientInstance.QueryManager.GetDeployedApplicationListAsync(
+                                        NodeName,
+                                        null,
+                                        ConfigurationSettings.AsyncTimeout,
+                                        Token).ConfigureAwait(false);
+
+                foreach (var app in appList)
+                {
+                    Token.ThrowIfCancellationRequested();
+
+                    if (app.ApplicationName.OriginalString == "fabric:/System")
+                    {
+                        continue;
+                    }
+
+                    // App filtering: AppExludeList, AppIncludeList. This is only useful when you are observing All/* applications for a range of thresholds.
+                    if (!string.IsNullOrWhiteSpace(application.AppExcludeList) && application.AppExcludeList.Contains(app.ApplicationName.OriginalString))
+                    {
+                        continue;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(application.AppIncludeList) && !application.AppIncludeList.Contains(app.ApplicationName.OriginalString))
+                    {
+                        continue;
+                    }
+
+                    // Don't create a brand new entry for an existing (specified in configuration) app target. Just update the appConfig instance with data supplied in the All or * apps config entry.
+                    // Note that if you supply a conflicting setting (where you specify a threshold for a specific app target config item and also in a global config item), then the target-specific setting will be used.
+                    // E.g., if you supply a memoryWarningLimitMb threshold for an app named fabric:/MyApp and also supply a memoryWarningLimitMb threshold for all apps ("targetApp" : "All"),
+                    // then the threshold specified for fabric:/MyApp will remain in place for that app target. So, target specificity overrides any global setting.
+                    if (userTargetList.Any(a => a.TargetApp == app.ApplicationName.OriginalString))
+                    {
+                        var existingAppConfig = userTargetList.Find(a => a.TargetApp == app.ApplicationName.OriginalString);
+
+                        if (existingAppConfig == null)
+                        {
+                            continue;
+                        }
+
+                        existingAppConfig.MemoryWarningLimitMb = existingAppConfig.MemoryWarningLimitMb == 0 && application.MemoryWarningLimitMb > 0 ? application.MemoryWarningLimitMb : existingAppConfig.MemoryWarningLimitMb;
+                        existingAppConfig.MemoryErrorLimitMb = existingAppConfig.MemoryErrorLimitMb == 0 && application.MemoryErrorLimitMb > 0 ? application.MemoryErrorLimitMb : existingAppConfig.MemoryErrorLimitMb;
+                        existingAppConfig.CpuErrorLimitPercent = existingAppConfig.CpuErrorLimitPercent == 0 && application.CpuErrorLimitPercent > 0 ? application.CpuErrorLimitPercent : existingAppConfig.CpuErrorLimitPercent;
+                        existingAppConfig.CpuWarningLimitPercent = existingAppConfig.CpuWarningLimitPercent == 0 && application.CpuWarningLimitPercent > 0 ? application.CpuWarningLimitPercent : existingAppConfig.CpuWarningLimitPercent;
+                    }
+                    else
+                    {
+                        ApplicationInfo appConfig = new ApplicationInfo
+                        {
+                            TargetApp = app.ApplicationName.OriginalString,
+                            AppExcludeList = application.AppExcludeList,
+                            AppIncludeList = application.AppIncludeList,
+                            MemoryWarningLimitMb = application.MemoryWarningLimitMb,
+                            MemoryErrorLimitMb = application.MemoryErrorLimitMb,
+                            CpuErrorLimitPercent = application.CpuErrorLimitPercent,
+                            CpuWarningLimitPercent = application.CpuWarningLimitPercent,
+                        };
+
+                        userTargetList.Add(appConfig);
+                    }
+                }
+
+                // Remove the All or * config item.
+                userTargetList.Remove(application);
+            }
+
+            int settingsFail = 0;
 
             foreach (var application in userTargetList)
             {
                 token.ThrowIfCancellationRequested();
 
-                if (string.IsNullOrWhiteSpace(application.TargetApp)
-                    && string.IsNullOrWhiteSpace(application.TargetAppType))
+                if (string.IsNullOrWhiteSpace(application.TargetApp))
                 {
                     HealthReporter.ReportFabricObserverServiceHealth(
                         FabricServiceContext.ServiceName.ToString(),
                         ObserverName,
                         HealthState.Warning,
-                        $"InitializeAsync | {application.TargetApp}: Required setting, target, is not set.");
+                        $"InitializeAsync | {application.TargetApp}: Required setting, targetApp, is not set.");
 
-                    settingSFail++;
+                    settingsFail++;
 
                     continue;
                 }
 
-                // No required settings supplied for deployed application(s).
-                if (settingSFail == userTargetList.Count)
+                // No required settings for supplied application(s).
+                if (settingsFail == userTargetList.Count)
                 {
                     return false;
+                }
+
+                ServiceFilterType filterType = ServiceFilterType.None;
+                List<string> filteredServiceList = null;
+
+                if (!string.IsNullOrWhiteSpace(application.ServiceExcludeList))
+                {
+                    filteredServiceList = application.ServiceExcludeList.Replace(" ", string.Empty).Split(',').ToList();
+                    filterType = ServiceFilterType.Exclude;
+                }
+                else if (!string.IsNullOrWhiteSpace(application.ServiceIncludeList))
+                {
+                    filteredServiceList = application.ServiceIncludeList.Replace(" ", string.Empty).Split(',').ToList();
+                    filterType = ServiceFilterType.Include;
                 }
 
                 try
                 {
                     var codepackages = await FabricClientInstance.QueryManager.GetDeployedCodePackageListAsync(
-                            NodeName,
-                            new Uri(application.TargetApp),
-                            null,
-                            null,
-                            TimeSpan.FromSeconds(30),
-                            token).ConfigureAwait(false);
+                                                NodeName,
+                                                new Uri(application.TargetApp),
+                                                null,
+                                                null,
+                                                ConfigurationSettings.AsyncTimeout,
+                                                token).ConfigureAwait(false);
 
                     if (codepackages.Count == 0)
                     {
@@ -333,24 +413,18 @@ namespace FabricObserver.Observers
 
                     deployedTargetList.Add(application);
 
-                    await SetInstanceOrReplicaMonitoringList(
-                        new Uri(application.TargetApp),
-                        null,
-                        ServiceFilterType.None,
-                        null).ConfigureAwait(false);
+                    await SetInstanceOrReplicaMonitoringList(new Uri(application.TargetApp), filteredServiceList, filterType, null).ConfigureAwait(false);
                 }
-                catch (Exception e) when (e is FabricException|| e is TimeoutException || e is OperationCanceledException)
+                catch (Exception e) when (e is FabricException || e is TimeoutException)
                 {
+                    ObserverLogger.LogInfo($"Handled Exception in function InitializeAsync:{e.GetType().Name}.");
                 }
             }
 
             foreach (var app in deployedTargetList)
             {
                 token.ThrowIfCancellationRequested();
-
-                ObserverLogger.LogInfo(
-                    $"Will observe container instance resource consumption by {app.TargetApp} " +
-                    $"on Node {NodeName}.");
+                ObserverLogger.LogInfo($"Will observe container instance resource consumption by {app.TargetApp} on Node {NodeName}.");
             }
 
             return true;
@@ -358,22 +432,19 @@ namespace FabricObserver.Observers
 
         private void SetConfigurationFilePath()
         {
-            string configDataFilename = GetSettingParameterValue(
-                ConfigurationSectionName,
-                "ConfigFileName");
+            string configDataFilename = GetSettingParameterValue(ConfigurationSectionName, "ConfigFileName");
 
-            if (!string.IsNullOrEmpty(configDataFilename) 
-                && !ConfigurationFilePath.Contains(configDataFilename))
+            if (!string.IsNullOrEmpty(configDataFilename) && !ConfigurationFilePath.Contains(configDataFilename))
             {
                 ConfigurationFilePath = Path.Combine(ConfigPackagePath, configDataFilename);
             }
         }
 
         private async Task SetInstanceOrReplicaMonitoringList(
-            Uri appName,
-            List<string> serviceFilterList,
-            ServiceFilterType filterType,
-            string appTypeName)
+                            Uri appName,
+                            List<string> serviceFilterList,
+                            ServiceFilterType filterType,
+                            string appTypeName)
         {
             var deployedReplicaList = await FabricClientInstance.QueryManager.GetDeployedReplicaListAsync(NodeName, appName).ConfigureAwait(true);
 
@@ -381,8 +452,7 @@ namespace FabricObserver.Observers
             {
                 ReplicaOrInstanceMonitoringInfo replicaInfo = null;
 
-                if (deployedReplica is DeployedStatefulServiceReplica statefulReplica
-                    && statefulReplica.ReplicaRole == ReplicaRole.Primary)
+                if (deployedReplica is DeployedStatefulServiceReplica statefulReplica && statefulReplica.ReplicaRole == ReplicaRole.Primary)
                 {
                     replicaInfo = new ReplicaOrInstanceMonitoringInfo()
                     {
@@ -395,8 +465,7 @@ namespace FabricObserver.Observers
                         ServicePackageActivationId = statefulReplica.ServicePackageActivationId,
                     };
 
-                    if (serviceFilterList != null
-                        && filterType != ServiceFilterType.None)
+                    if (serviceFilterList != null && filterType != ServiceFilterType.None)
                     {
                         bool isInFilterList = serviceFilterList.Any(s => statefulReplica.ServiceName.OriginalString.ToLower().Contains(s.ToLower()));
 
@@ -421,8 +490,7 @@ namespace FabricObserver.Observers
                         ServicePackageActivationId = statelessInstance.ServicePackageActivationId,
                     };
 
-                    if (serviceFilterList != null
-                        && filterType != ServiceFilterType.None)
+                    if (serviceFilterList != null && filterType != ServiceFilterType.None)
                     {
                         bool isInFilterList = serviceFilterList.Any(s => statelessInstance.ServiceName.OriginalString.ToLower().Contains(s.ToLower()));
 

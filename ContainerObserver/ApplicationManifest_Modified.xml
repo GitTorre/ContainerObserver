@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<ApplicationManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ApplicationTypeName="FabricObserverType" ApplicationTypeVersion="3.1.6" xmlns="http://schemas.microsoft.com/2011/01/fabric">
+<ApplicationManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ApplicationTypeName="FabricObserverType" ApplicationTypeVersion="3.1.7" xmlns="http://schemas.microsoft.com/2011/01/fabric">
   <!-- Note: Add parameters for your Observer plugins here (e.g., [ObserverName]Enabled, etc.) so you can deploy
          simple configuration updates for them. By design, any observer you make using our 
          extensibility model will employ the same basic config parameters as all observers do.
@@ -53,16 +53,16 @@
     <Parameter Name="FabricSystemObserverMonitorDuration" DefaultValue="00:00:05" />
     <Parameter Name="NodeObserverMonitorDuration" DefaultValue="00:00:05" />
     <Parameter Name="ContainerObserverMonitorDuration" DefaultValue="00:00:05" />
-    <!-- Observer Run Intervals (TimeSpan format, e.g., 0.00:00:00) -->
-    <Parameter Name="AppObserverRunInterval" DefaultValue="" />
+    <!-- Observer Run Intervals (TimeSpan format, e.g., 0.00:00:00, where 1.00:00:00 = 1 Day and 01:00:00 = 1 Hour..) -->
+    <Parameter Name="AppObserverRunInterval" DefaultValue="00:05:00" />
     <Parameter Name="CertificateObserverRunInterval" DefaultValue="1.00:00:00" />
-    <Parameter Name="DiskObserverRunInterval" DefaultValue="" />
+    <Parameter Name="DiskObserverRunInterval" DefaultValue="00:15:00" />
     <Parameter Name="FabricSystemObserverRunInterval" DefaultValue="" />
-    <Parameter Name="NetworkObserverRunInterval" DefaultValue="" />
-    <Parameter Name="NodeObserverRunInterval" DefaultValue="" />
-    <Parameter Name="OSObserverRunInterval" DefaultValue="" />
+    <Parameter Name="NetworkObserverRunInterval" DefaultValue="00:10:00" />
+    <Parameter Name="NodeObserverRunInterval" DefaultValue="00:15:00" />
+    <Parameter Name="OSObserverRunInterval" DefaultValue="01:00:00" />
     <Parameter Name="SFConfigurationObserverRunInterval" DefaultValue="" />
-    <Parameter Name="ContainerObserverRunInterval" DefaultValue="" />
+    <Parameter Name="ContainerObserverRunInterval" DefaultValue="00:05:00" />
     <!-- AppObserver -->
     <Parameter Name="AppObserverClusterOperationTimeoutSeconds" DefaultValue="120" />
     <Parameter Name="AppObserverUseCircularBuffer" DefaultValue="false" />
@@ -92,7 +92,6 @@
     <Parameter Name="FabricSystemObserverNetworkWarningActivePorts" DefaultValue="1000" />
     <Parameter Name="FabricSystemObserverNetworkErrorEphemeralPorts" DefaultValue="" />
     <Parameter Name="FabricSystemObserverNetworkWarningEphemeralPorts" DefaultValue="500" />
-    <Parameter Name="FabricSystemObserverClusterOperationTimeoutSeconds" DefaultValue="60"/>
     <Parameter Name="FabricSystemObserverAllocatedHandlesErrorLimit" DefaultValue="" />
     <Parameter Name="FabricSystemObserverAllocatedHandlesWarningLimit" DefaultValue="4000" />
     <!-- Whether to monitor Windows Event Log. -->
@@ -131,7 +130,7 @@
        should match the Name and Version attributes of the ServiceManifest element defined in the 
        ServiceManifest.xml file. -->
   <ServiceManifestImport>
-    <ServiceManifestRef ServiceManifestName="FabricObserverPkg" ServiceManifestVersion="3.1.6" />
+    <ServiceManifestRef ServiceManifestName="FabricObserverPkg" ServiceManifestVersion="3.1.7" />
     <ConfigOverrides>
       <ConfigOverride Name="Config">
         <Settings>
