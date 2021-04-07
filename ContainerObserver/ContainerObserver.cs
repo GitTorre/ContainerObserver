@@ -47,7 +47,6 @@ namespace FabricObserver.Observers
         public override async Task ObserveAsync(CancellationToken token)
         {
             // If set, this observer will only run during the supplied interval.
-            // See Settings.xml, CertificateObserverConfiguration section, RunInterval parameter for an example.
             if (RunInterval > TimeSpan.MinValue && DateTime.Now.Subtract(LastRunDateTime) < RunInterval)
             {
                 return;
@@ -68,7 +67,14 @@ namespace FabricObserver.Observers
             foreach (var repOrInst in replicaOrInstanceList)
             {
                 // This is how long each measurement sequence for each container can last.
+                // You can set this timespan value in ApplicationManifest_Modified.xml, see ContainerObserverMonitorDuration Parameter.
                 TimeSpan duration = TimeSpan.FromSeconds(10);
+
+                if (MonitorDuration > TimeSpan.MinValue)
+                {
+                    duration = MonitorDuration;
+                }
+
                 string serviceName = repOrInst.ServiceName.OriginalString.Replace(repOrInst.ApplicationName.OriginalString, "").Replace("/", "");
                 string cpuId = $"{serviceName}_cpu";
                 string memId = $"{serviceName}_mem";
@@ -185,6 +191,7 @@ namespace FabricObserver.Observers
         public override Task ReportAsync(CancellationToken token)
         {
             TimeSpan timeToLive = GetHealthReportTimeToLive();
+            string csvFileName;
 
             foreach (var app in deployedTargetList)
             {
@@ -198,21 +205,69 @@ namespace FabricObserver.Observers
                     var cpuFrudInst = allCpuDataPercentage.Find(cpu => cpu.Id == cpuId);
                     var memFrudInst = allMemDataMB.Find(mem => mem.Id == memId);
 
+                    if (EnableCsvLogging)
+                    {
+                        csvFileName = $"{serviceName}Data{(CsvWriteFormat == CsvFileWriteFormat.MultipleFilesNoArchives ? "_" + DateTime.UtcNow.ToString("o") : string.Empty)}";
+                        string appName = repOrInst.ApplicationName.OriginalString.Replace("fabric:/", "");
+                        string id = $"{appName}:{serviceName}";
+
+                        // BaseLogDataLogFolderPath is set in ObserverBase or a default one is created by CsvFileLogger.
+                        // This means a new folder will be added to the base path.
+                        if (CsvWriteFormat == CsvFileWriteFormat.MultipleFilesNoArchives)
+                        {
+                            CsvFileLogger.DataLogFolder = serviceName;
+                        }
+
+                        // Log resource usage data to local CSV file(s).
+                        // CPU Time
+                        CsvFileLogger.LogData(
+                                        csvFileName,
+                                        id,
+                                        ErrorWarningProperty.TotalCpuTime,
+                                        "Average",
+                                        Math.Round(cpuFrudInst.AverageDataValue));
+
+                        CsvFileLogger.LogData(
+                                        csvFileName,
+                                        id,
+                                        ErrorWarningProperty.TotalCpuTime,
+                                        "Peak",
+                                        Math.Round(cpuFrudInst.MaxDataValue));
+
+
+                        // Memory - MB
+                        CsvFileLogger.LogData(
+                                        csvFileName,
+                                        id,
+                                        ErrorWarningProperty.TotalMemoryConsumptionMb,
+                                        "Average",
+                                        Math.Round(memFrudInst.AverageDataValue));
+
+                        CsvFileLogger.LogData(
+                                        csvFileName,
+                                        id,
+                                        ErrorWarningProperty.TotalMemoryConsumptionMb,
+                                        "Peak",
+                                        Math.Round(memFrudInst.MaxDataValue));
+
+                    }
+
+                    // Report -> Send Telemetry/Write ETW/Create SF Health Warnings (if threshold breach)
                     ProcessResourceDataReportHealth(
-                                cpuFrudInst,
-                                app.CpuErrorLimitPercent,
-                                app.CpuWarningLimitPercent,
-                                timeToLive,
-                                HealthReportType.Application,
-                                repOrInst);
+                        cpuFrudInst,
+                        app.CpuErrorLimitPercent,
+                        app.CpuWarningLimitPercent,
+                        timeToLive,
+                        HealthReportType.Application,
+                        repOrInst);
 
                     ProcessResourceDataReportHealth(
-                                memFrudInst,
-                                app.MemoryErrorLimitMb,
-                                app.MemoryWarningLimitMb,
-                                timeToLive,
-                                HealthReportType.Application,
-                                repOrInst); 
+                        memFrudInst,
+                        app.MemoryErrorLimitMb,
+                        app.MemoryWarningLimitMb,
+                        timeToLive,
+                        HealthReportType.Application,
+                        repOrInst); 
                 }
             }
 
@@ -264,8 +319,7 @@ namespace FabricObserver.Observers
 
             using (Stream stream = new FileStream(ConfigurationFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                if (stream.Length > 0
-                    && JsonHelper.IsJson<List<ApplicationInfo>>(File.ReadAllText(ConfigurationFilePath)))
+                if (stream.Length > 0 && JsonHelper.IsJson<List<ApplicationInfo>>(File.ReadAllText(ConfigurationFilePath)))
                 {
                     userTargetList.AddRange(JsonHelper.ReadFromJsonStream<ApplicationInfo[]>(stream));
                 }
@@ -287,10 +341,10 @@ namespace FabricObserver.Observers
                 ApplicationInfo application = userTargetList.Find(app => app.TargetApp?.ToLower() == "all" || app.TargetApp == "*");
 
                 var appList = await FabricClientInstance.QueryManager.GetDeployedApplicationListAsync(
-                                        NodeName,
-                                        null,
-                                        ConfigurationSettings.AsyncTimeout,
-                                        Token).ConfigureAwait(false);
+                                                                        NodeName,
+                                                                        null,
+                                                                        ConfigurationSettings.AsyncTimeout,
+                                                                        Token).ConfigureAwait(false);
 
                 foreach (var app in appList)
                 {
@@ -359,10 +413,10 @@ namespace FabricObserver.Observers
                 if (string.IsNullOrWhiteSpace(application.TargetApp))
                 {
                     HealthReporter.ReportFabricObserverServiceHealth(
-                        FabricServiceContext.ServiceName.ToString(),
-                        ObserverName,
-                        HealthState.Warning,
-                        $"InitializeAsync | {application.TargetApp}: Required setting, targetApp, is not set.");
+                                    FabricServiceContext.ServiceName.ToString(),
+                                    ObserverName,
+                                    HealthState.Warning,
+                                    $"InitializeAsync | {application.TargetApp}: Required setting, targetApp, is not set.");
 
                     settingsFail++;
 
@@ -392,12 +446,12 @@ namespace FabricObserver.Observers
                 try
                 {
                     var codepackages = await FabricClientInstance.QueryManager.GetDeployedCodePackageListAsync(
-                                                NodeName,
-                                                new Uri(application.TargetApp),
-                                                null,
-                                                null,
-                                                ConfigurationSettings.AsyncTimeout,
-                                                token).ConfigureAwait(false);
+                                                                                NodeName,
+                                                                                new Uri(application.TargetApp),
+                                                                                null,
+                                                                                null,
+                                                                                ConfigurationSettings.AsyncTimeout,
+                                                                                token).ConfigureAwait(false);
 
                     if (codepackages.Count == 0)
                     {

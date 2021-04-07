@@ -1,33 +1,36 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<ApplicationManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ApplicationTypeName="FabricObserverType" ApplicationTypeVersion="3.1.7" xmlns="http://schemas.microsoft.com/2011/01/fabric">
+<ApplicationManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ApplicationTypeName="FabricObserverType" ApplicationTypeVersion="3.1.8" xmlns="http://schemas.microsoft.com/2011/01/fabric">
   <!-- Note: Add parameters for your Observer plugins here (e.g., [ObserverName]Enabled, etc.) so you can deploy
          simple configuration updates for them. By design, any observer you make using our 
          extensibility model will employ the same basic config parameters as all observers do.
          (See ObserverBase.cs) -->
   <Parameters>
     <Parameter Name="FabricObserver_InstanceCount" DefaultValue="-1" />
-    <!-- Observer Enablement - NOTE: By default, observers are enabled. If you leave DefaultValue as empty string, 
-         then it's the same thing as setting it to "true". -->
+    <!-- Observer Enablement - NOTE: By default, all observers are enabled (in source code). If you leave DefaultValue as empty string, 
+         then it's the same thing as setting it to true. You can of course set these to true if you want. Probably
+         easier to read and understand. -->
     <Parameter Name="AppObserverEnabled" DefaultValue="true" />
     <Parameter Name="CertificateObserverEnabled" DefaultValue="true" />
     <Parameter Name="DiskObserverEnabled" DefaultValue="true" />
     <Parameter Name="FabricSystemObserverEnabled" DefaultValue="false" />
-    <Parameter Name="NetworkObserverEnabled" DefaultValue="false" />
+    <Parameter Name="NetworkObserverEnabled" DefaultValue="true" />
     <Parameter Name="NodeObserverEnabled" DefaultValue="true" />
     <Parameter Name="OSObserverEnabled" DefaultValue="true" />
     <Parameter Name="SFConfigurationObserverEnabled" DefaultValue="false" />
     <Parameter Name="ContainerObserverEnabled" DefaultValue="true" />
-    <!-- Observer Telemetry Enablement -->
+
+    <!-- Telemetry - AppInsights or LogAnalytics -->
     <Parameter Name="AppObserverEnableTelemetry" DefaultValue="false" />
     <Parameter Name="CertificateObserverEnableTelemetry" DefaultValue="false" />
-    <Parameter Name="DiskObserverEnableTelemetry" DefaultValue="true" />
+    <Parameter Name="DiskObserverEnableTelemetry" DefaultValue="false" />
     <Parameter Name="FabricSystemObserverEnableTelemetry" DefaultValue="false" />
     <Parameter Name="NetworkObserverEnableTelemetry" DefaultValue="false" />
     <Parameter Name="NodeObserverEnableTelemetry" DefaultValue="false" />
     <Parameter Name="OSObserverEnableTelemetry" DefaultValue="false" />
     <Parameter Name="SFConfigurationObserverEnableTelemetry" DefaultValue="false" />
-    <Parameter Name="ContainerObserverEnableTelemetry" DefaultValue="true" />
-    <!-- ETW -->
+    <Parameter Name="ContainerObserverEnableTelemetry" DefaultValue="false" />
+
+    <!-- ETW - Custom EventSource Tracing -->
     <Parameter Name="AppObserverEnableEtw" DefaultValue="false" />
     <Parameter Name="CertificateObserverEnableEtw" DefaultValue="false" />
     <Parameter Name="DiskObserverEnableEtw" DefaultValue="false" />
@@ -36,8 +39,15 @@
     <Parameter Name="NodeObserverEnableEtw" DefaultValue="false" />
     <Parameter Name="OSObserverEnableEtw" DefaultValue="false" />
     <Parameter Name="SFConfigurationObserverEnableEtw" DefaultValue="false" />
-    <Parameter Name="ContainerObserverEnableEtw" DefaultValue="false" />
-    <!-- Observer Verbose Logging Enablement -->
+    <Parameter Name="ContainerObserverEnableEtw" DefaultValue="true" />
+    
+    <!-- CSV Logging -->
+    <Parameter Name="AppObserverEnableCSVDataLogging" DefaultValue="true" />
+    <Parameter Name="ContainerObserverEnableCSVDataLogging" DefaultValue="true" />
+    <Parameter Name="FabricSystemObserverEnableCSVDataLogging" DefaultValue="false" />
+    <Parameter Name="NodeObserverEnableCSVDataLogging" DefaultValue="false" />
+    
+    <!-- Verbose Logging -->
     <Parameter Name="AppObserverEnableVerboseLogging" DefaultValue="false" />
     <Parameter Name="CertificateObserverEnableVerboseLogging" DefaultValue="false" />
     <Parameter Name="DiskObserverEnableVerboseLogging" DefaultValue="false" />
@@ -47,97 +57,108 @@
     <Parameter Name="OSObserverEnableVerboseLogging" DefaultValue="false" />
     <Parameter Name="SFConfigurationObserverEnableVerboseLogging" DefaultValue="false" />
     <Parameter Name="ContainerObserverEnableVerboseLogging" DefaultValue="false" />
-    <!-- Observer Monitor Durations (TimeSpan format, e.g., 00:00:00) -->
-    <Parameter Name="AppObserverMonitorDuration" DefaultValue="00:00:05" />
-    <Parameter Name="DiskObserverMonitorDuration" DefaultValue="00:00:05" />
-    <Parameter Name="FabricSystemObserverMonitorDuration" DefaultValue="00:00:05" />
-    <Parameter Name="NodeObserverMonitorDuration" DefaultValue="00:00:05" />
-    <Parameter Name="ContainerObserverMonitorDuration" DefaultValue="00:00:05" />
-    <!-- Observer Run Intervals (TimeSpan format, e.g., 0.00:00:00, where 1.00:00:00 = 1 Day and 01:00:00 = 1 Hour..) -->
-    <Parameter Name="AppObserverRunInterval" DefaultValue="00:05:00" />
+
+    <!-- Monitor Durations (TimeSpan format, e.g., 00:00:00) -->
+    <Parameter Name="AppObserverMonitorDuration" DefaultValue="00:00:03" />
+    <Parameter Name="DiskObserverMonitorDuration" DefaultValue="00:00:03" />
+    <Parameter Name="FabricSystemObserverMonitorDuration" DefaultValue="00:00:03" />
+    <Parameter Name="NodeObserverMonitorDuration" DefaultValue="00:00:03" />
+    <Parameter Name="ContainerObserverMonitorDuration" DefaultValue="00:00:03" />
+    
+    <!-- Run Intervals (TimeSpan format, e.g., 0.00:00:00) -->
+    <Parameter Name="AppObserverRunInterval" DefaultValue="" />
     <Parameter Name="CertificateObserverRunInterval" DefaultValue="1.00:00:00" />
     <Parameter Name="DiskObserverRunInterval" DefaultValue="00:15:00" />
-    <Parameter Name="FabricSystemObserverRunInterval" DefaultValue="" />
-    <Parameter Name="NetworkObserverRunInterval" DefaultValue="00:10:00" />
-    <Parameter Name="NodeObserverRunInterval" DefaultValue="00:15:00" />
+    <Parameter Name="FabricSystemObserverRunInterval" DefaultValue="00:15:00" />
+    <Parameter Name="NetworkObserverRunInterval" DefaultValue="" />
+    <Parameter Name="NodeObserverRunInterval" DefaultValue="00:10:00" />
     <Parameter Name="OSObserverRunInterval" DefaultValue="01:00:00" />
     <Parameter Name="SFConfigurationObserverRunInterval" DefaultValue="" />
-    <Parameter Name="ContainerObserverRunInterval" DefaultValue="00:05:00" />
+    <Parameter Name="ContainerObserverRunInterval" DefaultValue="" />
+
     <!-- AppObserver -->
     <Parameter Name="AppObserverClusterOperationTimeoutSeconds" DefaultValue="120" />
     <Parameter Name="AppObserverUseCircularBuffer" DefaultValue="false" />
-    <!-- Required-If UseCircularBuffer = True -->
+    <!-- Required-If UseCircularBuffer = true -->
     <Parameter Name="AppObserverResourceUsageDataCapacity" DefaultValue="" />
+
+    <!-- CertificateObserver-->
     <!-- Cluster and App Certs Warning Start (Days) -> Default is 42 -->
-    <!-- Certificate Observer Overrides -->
     <Parameter Name="DaysUntilClusterExpiryWarningThreshold" DefaultValue="42" />
     <Parameter Name="DaysUntilAppExpiryWarningThreshold" DefaultValue="42" />
-    <!-- Required: These are JSON-style lists of strings, empty should be "[]", full should be "['thumb1', 'thumb2']" -->
+    <!-- Required: These are JSON-style lists of strings, empty should be "[]", full should be "['mythumb1', 'mythumb2', etc...] or ['mycommon'1, 'mycommon2', etc...]" -->
     <Parameter Name="AppCertThumbprintsToObserve" DefaultValue="[]" />
     <Parameter Name="AppCertCommonNamesToObserve" DefaultValue="[]" />
+
     <!-- Disk Observer Warning/Error Thresholds -->
-    <Parameter Name="DiskSpacePercentUsageWarningThreshold" DefaultValue="80" />
+    <Parameter Name="DiskSpacePercentUsageWarningThreshold" DefaultValue="85" />
     <Parameter Name="DiskSpacePercentUsageErrorThreshold" DefaultValue="" />
     <Parameter Name="AverageQueueLengthErrorThreshold" DefaultValue="" />
     <Parameter Name="AverageQueueLengthWarningThreshold" DefaultValue="15" />
-    <!-- FabricSystemObserver Warning/Error Thresholds -->
-    <Parameter Name="FabricSystemObserverUseCircularBuffer" DefaultValue="true" />
+
+    <!-- FabricSystemObserver -->
+    <Parameter Name="FabricSystemObserverUseCircularBuffer" DefaultValue="false" />
     <!-- Required-If UseCircularBuffer = True -->
-    <Parameter Name="FabricSystemObserverResourceUsageDataCapacity" DefaultValue="15" />
+    <Parameter Name="FabricSystemObserverResourceUsageDataCapacity" DefaultValue="" />
+    <!-- FabricSystemObserver Warning/Error Thresholds -->
     <Parameter Name="FabricSystemObserverCpuErrorLimitPercent" DefaultValue="" />
-    <Parameter Name="FabricSystemObserverCpuWarningLimitPercent" DefaultValue="85" />
+    <Parameter Name="FabricSystemObserverCpuWarningLimitPercent" DefaultValue="" />
     <Parameter Name="FabricSystemObserverMemoryErrorLimitMb" DefaultValue="" />
-    <Parameter Name="FabricSystemObserverMemoryWarningLimitMb" DefaultValue="2048" />
+    <Parameter Name="FabricSystemObserverMemoryWarningLimitMb" DefaultValue="4096" />
     <Parameter Name="FabricSystemObserverNetworkErrorActivePorts" DefaultValue="" />
-    <Parameter Name="FabricSystemObserverNetworkWarningActivePorts" DefaultValue="1000" />
-    <Parameter Name="FabricSystemObserverNetworkErrorEphemeralPorts" DefaultValue="" />
-    <Parameter Name="FabricSystemObserverNetworkWarningEphemeralPorts" DefaultValue="500" />
+    <Parameter Name="FabricSystemObserverNetworkWarningActivePorts" DefaultValue="" />
+    <Parameter Name="FabricSystemObserverNetworkErrorEphemeralPorts" DefaultValue="4000" />
+    <Parameter Name="FabricSystemObserverNetworkWarningEphemeralPorts" DefaultValue="" />
     <Parameter Name="FabricSystemObserverAllocatedHandlesErrorLimit" DefaultValue="" />
-    <Parameter Name="FabricSystemObserverAllocatedHandlesWarningLimit" DefaultValue="4000" />
+    <Parameter Name="FabricSystemObserverAllocatedHandlesWarningLimit" DefaultValue="5000" />
     <!-- Whether to monitor Windows Event Log. -->
     <Parameter Name="FabricSystemObserverMonitorWindowsEventLog" DefaultValue="false" />
-    <!-- NodeObserver Warning/Error Thresholds -->
+
+    <!-- NodeObserver -->
     <Parameter Name="NodeObserverUseCircularBuffer" DefaultValue="true" />
     <!-- Required-If UseCircularBuffer = True -->
-    <Parameter Name="NodeObserverResourceUsageDataCapacity" DefaultValue="15" />
+    <Parameter Name="NodeObserverResourceUsageDataCapacity" DefaultValue="5" />
+    <!-- NodeObserver Warning/Error Thresholds -->
     <Parameter Name="NodeObserverCpuErrorLimitPercent" DefaultValue="" />
-    <Parameter Name="NodeObserverCpuWarningLimitPercent" DefaultValue="80" />
+    <Parameter Name="NodeObserverCpuWarningLimitPercent" DefaultValue="90" />
     <Parameter Name="NodeObserverMemoryErrorLimitMb" DefaultValue="" />
     <Parameter Name="NodeObserverMemoryWarningLimitMb" DefaultValue="" />
     <Parameter Name="NodeObserverMemoryErrorLimitPercent" DefaultValue="" />
-    <Parameter Name="NodeObserverMemoryWarningLimitPercent" DefaultValue="80" />
+    <Parameter Name="NodeObserverMemoryWarningLimitPercent" DefaultValue="95" />
     <Parameter Name="NodeObserverNetworkErrorActivePorts" DefaultValue="" />
-    <Parameter Name="NodeObserverNetworkWarningActivePorts" DefaultValue="55000" />
+    <Parameter Name="NodeObserverNetworkWarningActivePorts" DefaultValue="50000" />
     <Parameter Name="NodeObserverNetworkErrorFirewallRules" DefaultValue="" />
     <Parameter Name="NodeObserverNetworkWarningFirewallRules" DefaultValue="2500" />
     <Parameter Name="NodeObserverNetworkErrorEphemeralPorts" DefaultValue="" />
-    <Parameter Name="NodeObserverNetworkWarningEphemeralPorts" DefaultValue="5000" />
+    <Parameter Name="NodeObserverNetworkWarningEphemeralPorts" DefaultValue="10000" />
     <!-- The below settings only make sense for Linux. -->
     <Parameter Name="NodeObserverLinuxFileHandlesErrorLimitPercent" DefaultValue="" />
     <Parameter Name="NodeObserverLinuxFileHandlesWarningLimitPercent" DefaultValue="90" />
     <Parameter Name="NodeObserverLinuxFileHandlesErrorLimitTotal" DefaultValue="" />
     <Parameter Name="NodeObserverLinuxFileHandlesWarningLimitTotal" DefaultValue="" />
+
     <!-- OSObserver Windows AutoUpdate Settings Check -->
     <Parameter Name="OSObserverEnableWindowsAutoUpdateCheck" DefaultValue="true" />
-    <!-- ContainerObserver Warning/Error Thresholds -->
-    <Parameter Name="ContainerObserverConfigFileName" DefaultValue="containerobserver.config.json" />
+
     <!-- Observers with JSON config - File names.
          You can point to a different, existing file name in PackageRoot's Config, for example. -->
     <Parameter Name="AppObserverConfigurationFile" DefaultValue="AppObserver.config.json" />
+    <Parameter Name="ContainerObserverConfigurationFile" DefaultValue="containerobserver.config.json" />
     <Parameter Name="NetworkObserverConfigurationFile" DefaultValue="NetworkObserver.config.json" />
   </Parameters>
   <!-- Import the ServiceManifest from the ServicePackage. The ServiceManifestName and ServiceManifestVersion 
        should match the Name and Version attributes of the ServiceManifest element defined in the 
        ServiceManifest.xml file. -->
   <ServiceManifestImport>
-    <ServiceManifestRef ServiceManifestName="FabricObserverPkg" ServiceManifestVersion="3.1.7" />
+    <ServiceManifestRef ServiceManifestName="FabricObserverPkg" ServiceManifestVersion="3.1.8" />
     <ConfigOverrides>
       <ConfigOverride Name="Config">
         <Settings>
           <Section Name="AppObserverConfiguration">
             <Parameter Name="Enabled" Value="[AppObserverEnabled]" />
-            <Parameter Name="EnableTelemetry" Value="[AppObserverEnableTelemetry]" />
+            <Parameter Name="EnableCSVDataLogging" Value="[AppObserverEnableCSVDataLogging]" />
             <Parameter Name="EnableEtw" Value="[AppObserverEnableEtw]" />
+            <Parameter Name="EnableTelemetry" Value="[AppObserverEnableTelemetry]" />
             <Parameter Name="EnableVerboseLogging" Value="[AppObserverEnableVerboseLogging]" />
             <Parameter Name="MonitorDuration" Value="[AppObserverMonitorDuration]" />
             <Parameter Name="RunInterval" Value="[AppObserverRunInterval]" />
@@ -173,8 +194,9 @@
           </Section>
           <Section Name="FabricSystemObserverConfiguration">
             <Parameter Name="Enabled" Value="[FabricSystemObserverEnabled]" />
-            <Parameter Name="EnableTelemetry" Value="[FabricSystemObserverEnableTelemetry]" />
+            <Parameter Name="EnableCSVDataLogging" Value="[FabricSystemObserverEnableCSVDataLogging]" />
             <Parameter Name="EnableEtw" Value="[FabricSystemObserverEnableEtw]" />
+            <Parameter Name="EnableTelemetry" Value="[FabricSystemObserverEnableTelemetry]" />
             <Parameter Name="EnableVerboseLogging" Value="[FabricSystemObserverEnableVerboseLogging]" />
             <Parameter Name="MonitorDuration" Value="[FabricSystemObserverMonitorDuration]" />
             <Parameter Name="RunInterval" Value="[FabricSystemObserverRunInterval]" />
@@ -207,6 +229,7 @@
           <Section Name="NodeObserverConfiguration">
             <Parameter Name="Enabled" Value="[NodeObserverEnabled]" />
             <Parameter Name="EnableTelemetry" Value="[NodeObserverEnableTelemetry]" />
+            <Parameter Name="EnableCSVDataLogging" Value="[NodeObserverEnableCSVDataLogging]" />
             <Parameter Name="EnableEtw" Value="[NodeObserverEnableEtw]" />
             <Parameter Name="EnableVerboseLogging" Value="[NodeObserverEnableVerboseLogging]" />
             <Parameter Name="MonitorDuration" Value="[NodeObserverMonitorDuration]" />
@@ -248,12 +271,13 @@
           </Section>
           <Section Name="ContainerObserverConfiguration">
             <Parameter Name="Enabled" Value="[ContainerObserverEnabled]" />
+            <Parameter Name="EnableCSVDataLogging" Value="[ContainerObserverEnableCSVDataLogging]"/>
             <Parameter Name="EnableTelemetry" Value="[ContainerObserverEnableTelemetry]" />
             <Parameter Name="EnableEtw" Value="[ContainerObserverEnableEtw]" />
             <Parameter Name="EnableVerboseLogging" Value="[ContainerObserverEnableVerboseLogging]" />
             <Parameter Name="MonitorDuration" Value="[ContainerObserverMonitorDuration]"/>
             <Parameter Name="RunInterval" Value="[ContainerObserverRunInterval]" />
-            <Parameter Name="ConfigFileName" Value="[ContainerObserverConfigFileName]" />
+            <Parameter Name="ConfigFileName" Value="[ContainerObserverConfigurationFile]" />
           </Section>
         </Settings>
       </ConfigOverride>
