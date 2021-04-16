@@ -14,7 +14,7 @@ ContainerObserver monitors and reports on machine resource use - CPU% and Privat
 #### Steps 
 **Note: make sure you know if .NET Core 3.1 is installed on the target server. If it is not, then you must use the SelfContained FO nuget package, else you can use FrameworkDependent FO nuget package. This is very important.** 
 
-**ContainerObserver 3.1.8 requires Microsoft.ServiceFabricApps.FabricObserver nupkg version 3.1.8**.  
+**ContainerObserver 3.1.9 requires Microsoft.ServiceFabricApps.FabricObserver nupkg version 3.1.8**.  
 
 - Install [.Net Core 3.1](https://dotnet.microsoft.com/download/dotnet-core/3.1) if you haven't already.
 - Clone repo.
