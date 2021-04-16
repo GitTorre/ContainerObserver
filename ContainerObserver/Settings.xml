@@ -55,7 +55,7 @@
     <!-- Optional: How do you want to store csv files per observer run? Default is SingleFileWithArchives which means write to a single file that is updated per run and archived after 1 day. 
          The other option, MultipleFilesNoArchives means files are written per run per monitor target (so, one file for each service process that you are monitoring, for example, 
          time-stamped (Utc), per observer run. Note that in either case, files will remain on disk for the number of days specified in MaxArchivedCsvFileLifetimeDays. -->
-    <Parameter Name="CsvFileWriteFormat" Value="MultipleFilesNoArchives" />
+    <Parameter Name="CsvFileWriteFormat" Value="SingleFileWithArchives" />
 
     <!-- Required: Diagnostic Telemetry. Azure ApplicationInsights and Azure LogAnalytics support is already implemented, 
          but you can implement whatever provider you want. See IObserverTelemetry interface. -->

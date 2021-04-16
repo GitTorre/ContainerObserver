@@ -11,6 +11,7 @@ using System.Fabric;
 using System.Runtime.InteropServices;
 using FabricObserver.Observers.Utilities;
 using FabricObserver.Observers.MachineInfoModel;
+using System.Fabric.Description;
 
 namespace FabricObserver.Observers
 {
@@ -59,10 +60,10 @@ namespace FabricObserver.Observers
                 return;
             }
 
-             /*
-                CONTAINER ID        NAME                                                                              CPU %               PRIV WORKING SET    NET I/O             BLOCK I/O
-                644e19852fa0        sf-38-e6837395-6951-4559-acbc-98146d9b3480_52adab36-a1c0-4ea6-95b4-67e51498fb4e   0.01%               53.25MiB            1.16MB / 526kB      28.4MB / 25.8MB
-             */
+            /*
+               CONTAINER ID        NAME                                                                              CPU %               PRIV WORKING SET    NET I/O             BLOCK I/O
+               644e19852fa0        sf-38-e6837395-6951-4559-acbc-98146d9b3480_52adab36-a1c0-4ea6-95b4-67e51498fb4e   0.01%               53.25MiB            1.16MB / 526kB      28.4MB / 25.8MB
+            */
 
             foreach (var repOrInst in replicaOrInstanceList)
             {
@@ -340,13 +341,44 @@ namespace FabricObserver.Observers
             {
                 ApplicationInfo application = userTargetList.Find(app => app.TargetApp?.ToLower() == "all" || app.TargetApp == "*");
 
-                var appList = await FabricClientInstance.QueryManager.GetDeployedApplicationListAsync(
-                                                                        NodeName,
-                                                                        null,
-                                                                        ConfigurationSettings.AsyncTimeout,
-                                                                        Token).ConfigureAwait(false);
+                // Let's make sure that we page through app lists that are huge (like 4MB result set (that's a lot of apps)).
+                var deployedAppQueryDesc = new PagedDeployedApplicationQueryDescription(NodeName)
+                {
+                    IncludeHealthState = false,
+                    MaxResults = 150,
+                };
 
-                foreach (var app in appList)
+                var appList = await FabricClientRetryHelper.ExecuteFabricActionWithRetryAsync(
+                                        () => FabricClientInstance.QueryManager.GetDeployedApplicationPagedListAsync(
+                                                                                    deployedAppQueryDesc,
+                                                                                    ConfigurationSettings.AsyncTimeout,
+                                                                                    Token),
+                                        Token);
+
+                // DeployedApplicationList is a wrapper around List, but does not support AddRange.. Thus, cast it ToList and add to the temp list, then iterate through it.
+                // In reality, this list will never be greater than, say, 1000 apps deployed to a node, but it's a good idea to be prepared since AppObserver supports
+                // all-app service process monitoring with a very simple configuration pattern.
+                var apps = appList.ToList();
+
+                // The GetDeployedApplicationPagedList api will set a continuation token value if it knows it did not return all the results in one swoop.
+                // Check that it is not null, and make a new query passing back the token it gave you.
+                while (appList.ContinuationToken != null)
+                {
+                    Token.ThrowIfCancellationRequested();
+
+                    deployedAppQueryDesc.ContinuationToken = appList.ContinuationToken;
+
+                    appList = await FabricClientRetryHelper.ExecuteFabricActionWithRetryAsync(
+                                       () => FabricClientInstance.QueryManager.GetDeployedApplicationPagedListAsync(
+                                                                                   deployedAppQueryDesc,
+                                                                                   ConfigurationSettings.AsyncTimeout,
+                                                                                   Token),
+                                   Token);
+
+                    apps.AddRange(appList.ToList());
+                }
+
+                foreach (var app in apps)
                 {
                     Token.ThrowIfCancellationRequested();
 
@@ -445,13 +477,15 @@ namespace FabricObserver.Observers
 
                 try
                 {
-                    var codepackages = await FabricClientInstance.QueryManager.GetDeployedCodePackageListAsync(
-                                                                                NodeName,
-                                                                                new Uri(application.TargetApp),
-                                                                                null,
-                                                                                null,
-                                                                                ConfigurationSettings.AsyncTimeout,
-                                                                                token).ConfigureAwait(false);
+                    var codepackages = await FabricClientRetryHelper.ExecuteFabricActionWithRetryAsync(
+                                               () => FabricClientInstance.QueryManager.GetDeployedCodePackageListAsync(
+                                                                                        NodeName,
+                                                                                        new Uri(application.TargetApp),
+                                                                                        null,
+                                                                                        null,
+                                                                                        ConfigurationSettings.AsyncTimeout,
+                                                                                        token),
+                                       Token);
 
                     if (codepackages.Count == 0)
                     {
@@ -500,7 +534,9 @@ namespace FabricObserver.Observers
                             ServiceFilterType filterType,
                             string appTypeName)
         {
-            var deployedReplicaList = await FabricClientInstance.QueryManager.GetDeployedReplicaListAsync(NodeName, appName).ConfigureAwait(true);
+            var deployedReplicaList = await FabricClientRetryHelper.ExecuteFabricActionWithRetryAsync(
+                                               () => FabricClientInstance.QueryManager.GetDeployedReplicaListAsync(NodeName, appName),
+                                               Token);
 
             foreach (var deployedReplica in deployedReplicaList)
             {
