@@ -26,12 +26,8 @@ namespace FabricObserver.Observers
         // deployedTargetList is the list of ApplicationInfo objects representing currently deployed applications in the user-supplied list.
         private readonly List<ApplicationInfo> deployedTargetList;
         private readonly List<ReplicaOrInstanceMonitoringInfo> replicaOrInstanceList;
+        private readonly string ConfigPackagePath;
         private string ConfigurationFilePath = string.Empty;
-
-        public string ConfigPackagePath
-        {
-            get; set;
-        }
 
         public ContainerObserver(FabricClient fabricClient, StatelessServiceContext context)
             : base(fabricClient, context)
@@ -53,7 +49,7 @@ namespace FabricObserver.Observers
                 return;
             }
 
-            Stopwatch runTimer = Stopwatch.StartNew();
+            var runDurationTimer = Stopwatch.StartNew();
 
             if (!await InitializeAsync(token).ConfigureAwait(false))
             {
@@ -65,134 +61,147 @@ namespace FabricObserver.Observers
                644e19852fa0        sf-38-e6837395-6951-4559-acbc-98146d9b3480_52adab36-a1c0-4ea6-95b4-67e51498fb4e   0.01%               53.25MiB            1.16MB / 526kB      28.4MB / 25.8MB
             */
 
-            foreach (var repOrInst in replicaOrInstanceList)
+            try
             {
-                // This is how long each measurement sequence for each container can last.
-                // You can set this timespan value in ApplicationManifest_Modified.xml, see ContainerObserverMonitorDuration Parameter.
-                TimeSpan duration = TimeSpan.FromSeconds(10);
 
-                if (MonitorDuration > TimeSpan.MinValue)
+
+                foreach (var repOrInst in replicaOrInstanceList)
                 {
-                    duration = MonitorDuration;
-                }
+                    // This is how long each measurement sequence for each container can last.
+                    // You can set this timespan value in ApplicationManifest_Modified.xml, see ContainerObserverMonitorDuration Parameter.
+                    TimeSpan duration = TimeSpan.FromSeconds(10);
 
-                string serviceName = repOrInst.ServiceName.OriginalString.Replace(repOrInst.ApplicationName.OriginalString, "").Replace("/", "");
-                string cpuId = $"{serviceName}_cpu";
-                string memId = $"{serviceName}_mem";
-                string containerId = string.Empty;
+                    token.ThrowIfCancellationRequested();
 
-                if (!allCpuDataPercentage.Any(frud => frud.Id == cpuId))
-                {
-                    allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId));
-                }
-
-                if (!allMemDataMB.Any(frud => frud.Id == memId))
-                {
-                    allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId));
-                }
-
-                if (ConfigurationSettings.MonitorDuration > TimeSpan.MinValue)
-                {
-                    duration = ConfigurationSettings.MonitorDuration;
-                }
-
-                Stopwatch monitorTimer = Stopwatch.StartNew();
-                string args = "/c docker stats --no-stream";
-                string filename = $"{Environment.GetFolderPath(Environment.SpecialFolder.System)}\\cmd.exe";
-               
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                {
-                    args = string.Empty;
-                    
-                    // We need the full path to the currently deployed FO CodePackage, which is where our 
-                    // linux capabilities-laced proxy binary lives, which is used for elevated_docker_stats call.
-                    string path = FabricServiceContext.CodePackageActivationContext.GetCodePackageObject("Code").Path;
-                    filename = $"{path}/elevated_docker_stats";
-                }
-
-                while (monitorTimer.Elapsed < duration)
-                {
-                    ProcessStartInfo ps = new ProcessStartInfo
+                    if (MonitorDuration > TimeSpan.MinValue)
                     {
-                        Arguments = args,
-                        FileName = filename,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                        RedirectStandardInput = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = false,
-                    };
+                        duration = MonitorDuration;
+                    }
 
-                    using (Process p = Process.Start(ps))
+                    string serviceName = repOrInst.ServiceName.OriginalString.Replace(repOrInst.ApplicationName.OriginalString, "").Replace("/", "");
+                    string cpuId = $"{serviceName}_cpu";
+                    string memId = $"{serviceName}_mem";
+                    string containerId = string.Empty;
+
+                    if (allCpuDataPercentage.All(frud => frud.Id != cpuId))
                     {
-                        List<string> output = new List<string>();
-                        string l;
+                        allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId));
+                    }
 
-                        while ((l = p.StandardOutput.ReadLine()) != null)
+                    if (allMemDataMB.All(frud => frud.Id != memId))
+                    {
+                        allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId));
+                    }
+
+                    if (ConfigurationSettings.MonitorDuration > TimeSpan.MinValue)
+                    {
+                        duration = ConfigurationSettings.MonitorDuration;
+                    }
+
+                    var monitorTimer = Stopwatch.StartNew();
+                    string args = "/c docker stats --no-stream";
+                    string filename = $"{Environment.GetFolderPath(Environment.SpecialFolder.System)}\\cmd.exe";
+
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                    {
+                        args = string.Empty;
+
+                        // We need the full path to the currently deployed FO CodePackage, which is where our 
+                        // linux capabilities-laced proxy binary lives, which is used for elevated_docker_stats call.
+                        string path = FabricServiceContext.CodePackageActivationContext.GetCodePackageObject("Code").Path;
+                        filename = $"{path}/elevated_docker_stats";
+                    }
+
+                    while (monitorTimer.Elapsed < duration)
+                    {
+                        var ps = new ProcessStartInfo
                         {
-                            output.Add(l);
-                        }
+                            Arguments = args,
+                            FileName = filename,
+                            UseShellExecute = false,
+                            WindowStyle = ProcessWindowStyle.Hidden,
+                            RedirectStandardInput = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = false,
+                        };
 
-                        foreach (string line in output)
+                        using (Process p = Process.Start(ps))
                         {
-                            token.ThrowIfCancellationRequested();
+                            List<string> output = new List<string>();
+                            string l;
 
-                            if (!line.Contains(repOrInst.ServicePackageActivationId))
+                            while ((l = await p.StandardOutput.ReadLineAsync()) != null)
                             {
-                                continue;
+                                output.Add(l);
                             }
 
-                            List<string> stats = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-
-                            if (stats.Count == 0)
-                            {
-                                ObserverLogger.LogWarning("docker stats not returning any information.");
-                                return;
-                            }
-
-                            containerId = stats[0];
-                            repOrInst.ContainerId = containerId;
-
-                            foreach (string stat in stats)
+                            foreach (string line in output)
                             {
                                 token.ThrowIfCancellationRequested();
 
-                                if (stat.Contains("%"))
+                                if (!line.Contains(repOrInst.ServicePackageActivationId))
                                 {
-                                    double cpu_percent = double.Parse(stat.Replace("%", ""));
-                                    allCpuDataPercentage.Where(f => f.Id == cpuId).FirstOrDefault().Data.Add(cpu_percent);
-                                    ObserverLogger.LogInfo($"CPU% for container {containerId}: {cpu_percent}");
+                                    continue;
                                 }
 
-                                if (stat.Contains("MiB"))
+                                List<string> stats = line.Split(new[] {' '}, StringSplitOptions.RemoveEmptyEntries).ToList();
+
+                                if (stats.Count == 0)
                                 {
+                                    ObserverLogger.LogWarning("docker stats not returning any information.");
+                                    return;
+                                }
+
+                                containerId = stats[0];
+                                repOrInst.ContainerId = containerId;
+
+                                foreach (string stat in stats)
+                                {
+                                    token.ThrowIfCancellationRequested();
+
+                                    if (stat.Contains("%"))
+                                    {
+                                        double cpu_percent = double.Parse(stat.Replace("%", ""));
+                                        allCpuDataPercentage?.FirstOrDefault(f => f.Id == cpuId)?.Data.Add(cpu_percent);
+                                        ObserverLogger.LogInfo($"CPU% for container {containerId}: {cpu_percent}");
+                                    }
+
+                                    if (!stat.Contains("MiB"))
+                                    {
+                                        continue;
+                                    }
+
                                     double mem_working_set_mb = double.Parse(stat.Replace("MiB", ""));
-                                    allMemDataMB.Where(f => f.Id == memId).FirstOrDefault().Data.Add(mem_working_set_mb);
+                                    allMemDataMB?.FirstOrDefault(f => f.Id == memId)?.Data.Add(mem_working_set_mb);
                                     ObserverLogger.LogInfo($"Workingset MB for container {containerId}: {mem_working_set_mb}");
                                 }
-                            }
 
-                            await Task.Delay(250);
+                                await Task.Delay(250, token);
+                            }
                         }
                     }
-                }
 
-                monitorTimer.Stop();
-                monitorTimer.Reset();
+                    monitorTimer.Stop();
+                    monitorTimer.Reset();
+                }
+            }
+            catch (Exception e) when (!(e is OperationCanceledException || e is TaskCanceledException))
+            {
+                ObserverLogger.LogWarning($"Failure in ObserveAsync:{Environment.NewLine}{e}");
+
+                // fix the bug..
+                throw;
             }
 
-            runTimer.Stop();
-            RunDuration = runTimer.Elapsed;
-
             await ReportAsync(token).ConfigureAwait(true);
-
+            runDurationTimer.Stop();
+            RunDuration = runDurationTimer.Elapsed;
             LastRunDateTime = DateTime.Now;
         }
 
         public override Task ReportAsync(CancellationToken token)
         {
             TimeSpan timeToLive = GetHealthReportTimeToLive();
-            string csvFileName;
 
             foreach (var app in deployedTargetList)
             {
@@ -201,14 +210,12 @@ namespace FabricObserver.Observers
                     string serviceName = repOrInst.ServiceName.OriginalString.Replace(app.TargetApp, "").Replace("/", "");
                     string cpuId = $"{serviceName}_cpu";
                     string memId = $"{serviceName}_mem";
-                    string healthReportPropCpu = $"{cpuId}_{NodeName}";
-                    string healthReportPropMem = $"{memId}_{NodeName}";
                     var cpuFrudInst = allCpuDataPercentage.Find(cpu => cpu.Id == cpuId);
                     var memFrudInst = allMemDataMB.Find(mem => mem.Id == memId);
 
                     if (EnableCsvLogging)
                     {
-                        csvFileName = $"{serviceName}Data{(CsvWriteFormat == CsvFileWriteFormat.MultipleFilesNoArchives ? "_" + DateTime.UtcNow.ToString("o") : string.Empty)}";
+                        var csvFileName = $"{serviceName}Data{(CsvWriteFormat == CsvFileWriteFormat.MultipleFilesNoArchives ? "_" + DateTime.UtcNow.ToString("o") : string.Empty)}";
                         string appName = repOrInst.ApplicationName.OriginalString.Replace("fabric:/", "");
                         string id = $"{appName}:{serviceName}";
 
@@ -392,7 +399,8 @@ namespace FabricObserver.Observers
                     {
                         continue;
                     }
-                    else if (!string.IsNullOrWhiteSpace(application.AppIncludeList) && !application.AppIncludeList.Contains(app.ApplicationName.OriginalString))
+                    
+                    if (!string.IsNullOrWhiteSpace(application.AppIncludeList) && !application.AppIncludeList.Contains(app.ApplicationName.OriginalString))
                     {
                         continue;
                     }
@@ -417,7 +425,7 @@ namespace FabricObserver.Observers
                     }
                     else
                     {
-                        ApplicationInfo appConfig = new ApplicationInfo
+                        var appConfig = new ApplicationInfo
                         {
                             TargetApp = app.ApplicationName.OriginalString,
                             AppExcludeList = application.AppExcludeList,
@@ -492,9 +500,9 @@ namespace FabricObserver.Observers
                         continue;
                     }
 
-                    var containerhostedPkgs = codepackages.Where(c => c.HostType == HostType.ContainerHost);
+                    int containerHostCount = codepackages.Count(c => c.HostType == HostType.ContainerHost);
 
-                    if (containerhostedPkgs.Count() == 0)
+                    if (containerHostCount == 0)
                     {
                         continue;
                     }
@@ -530,7 +538,7 @@ namespace FabricObserver.Observers
 
         private async Task SetInstanceOrReplicaMonitoringList(
                             Uri appName,
-                            List<string> serviceFilterList,
+                            IReadOnlyCollection<string> serviceFilterList,
                             ServiceFilterType filterType,
                             string appTypeName)
         {
@@ -542,54 +550,61 @@ namespace FabricObserver.Observers
             {
                 ReplicaOrInstanceMonitoringInfo replicaInfo = null;
 
-                if (deployedReplica is DeployedStatefulServiceReplica statefulReplica && statefulReplica.ReplicaRole == ReplicaRole.Primary)
+                switch (deployedReplica)
                 {
-                    replicaInfo = new ReplicaOrInstanceMonitoringInfo()
+                    case DeployedStatefulServiceReplica statefulReplica when statefulReplica.ReplicaRole == ReplicaRole.Primary:
                     {
-                        ApplicationName = appName,
-                        ApplicationTypeName = appTypeName,
-                        HostProcessId = statefulReplica.HostProcessId,
-                        ReplicaOrInstanceId = statefulReplica.ReplicaId,
-                        PartitionId = statefulReplica.Partitionid,
-                        ServiceName = statefulReplica.ServiceName,
-                        ServicePackageActivationId = statefulReplica.ServicePackageActivationId,
-                    };
-
-                    if (serviceFilterList != null && filterType != ServiceFilterType.None)
-                    {
-                        bool isInFilterList = serviceFilterList.Any(s => statefulReplica.ServiceName.OriginalString.ToLower().Contains(s.ToLower()));
-
-                        switch (filterType)
+                        replicaInfo = new ReplicaOrInstanceMonitoringInfo()
                         {
-                            case ServiceFilterType.Include when !isInFilterList:
-                            case ServiceFilterType.Exclude when isInFilterList:
-                                continue;
+                            ApplicationName = appName,
+                            ApplicationTypeName = appTypeName,
+                            HostProcessId = statefulReplica.HostProcessId,
+                            ReplicaOrInstanceId = statefulReplica.ReplicaId,
+                            PartitionId = statefulReplica.Partitionid,
+                            ServiceName = statefulReplica.ServiceName,
+                            ServicePackageActivationId = statefulReplica.ServicePackageActivationId,
+                        };
+
+                        if (serviceFilterList != null && filterType != ServiceFilterType.None)
+                        {
+                            bool isInFilterList = serviceFilterList.Any(s => statefulReplica.ServiceName.OriginalString.ToLower().Contains(s.ToLower()));
+
+                            switch (filterType)
+                            {
+                                case ServiceFilterType.Include when !isInFilterList:
+                                case ServiceFilterType.Exclude when isInFilterList:
+                                    continue;
+                            }
                         }
+
+                        break;
                     }
-                }
-                else if (deployedReplica is DeployedStatelessServiceInstance statelessInstance)
-                {
-                    replicaInfo = new ReplicaOrInstanceMonitoringInfo()
+                    case DeployedStatelessServiceInstance statelessInstance:
                     {
-                        ApplicationName = appName,
-                        ApplicationTypeName = appTypeName,
-                        HostProcessId = statelessInstance.HostProcessId,
-                        ReplicaOrInstanceId = statelessInstance.InstanceId,
-                        PartitionId = statelessInstance.Partitionid,
-                        ServiceName = statelessInstance.ServiceName,
-                        ServicePackageActivationId = statelessInstance.ServicePackageActivationId,
-                    };
-
-                    if (serviceFilterList != null && filterType != ServiceFilterType.None)
-                    {
-                        bool isInFilterList = serviceFilterList.Any(s => statelessInstance.ServiceName.OriginalString.ToLower().Contains(s.ToLower()));
-
-                        switch (filterType)
+                        replicaInfo = new ReplicaOrInstanceMonitoringInfo()
                         {
-                            case ServiceFilterType.Include when !isInFilterList:
-                            case ServiceFilterType.Exclude when isInFilterList:
-                                continue;
+                            ApplicationName = appName,
+                            ApplicationTypeName = appTypeName,
+                            HostProcessId = statelessInstance.HostProcessId,
+                            ReplicaOrInstanceId = statelessInstance.InstanceId,
+                            PartitionId = statelessInstance.Partitionid,
+                            ServiceName = statelessInstance.ServiceName,
+                            ServicePackageActivationId = statelessInstance.ServicePackageActivationId,
+                        };
+
+                        if (serviceFilterList != null && filterType != ServiceFilterType.None)
+                        {
+                            bool isInFilterList = serviceFilterList.Any(s => statelessInstance.ServiceName.OriginalString.ToLower().Contains(s.ToLower()));
+
+                            switch (filterType)
+                            {
+                                case ServiceFilterType.Include when !isInFilterList:
+                                case ServiceFilterType.Exclude when isInFilterList:
+                                    continue;
+                            }
                         }
+
+                        break;
                     }
                 }
                 
