@@ -1,4 +1,4 @@
-# ContainerObserver
+# ContainerObserver (FO 3.1.12 Tested)
 
 This is an implementation of a [FabricObserver](https://aka.ms/sf/fabricobserver) plugin, built as a .NET Standard 2.0 library, that monitors dockerd-hosted Service Fabric app container instances for CPU and Memory use. It demonstrates how to write FabricObserver plugins that extend FabricObserver's capabilities and then deploy FO to your cluster from the plugin build output directory (which is effectively a decompressed sfpkg). You can learn more about the FabricObserver plugin model [here](https://github.com/microsoft/service-fabric-observer/tree/master/SampleObserverPlugin) and [here](https://github.com/microsoft/service-fabric-observer/blob/master/Documentation/Plugins.md).
 
@@ -7,20 +7,39 @@ ContainerObserver monitors and reports on machine resource use - CPU% and Privat
 
 ![SFX Warning](/ContainerObserver/SFX.png)  
 
-**Note: ContainerObserver must be hosted in an elevated FabricObserver process on Windows. When you build this project, the related SF configuration files will be set to run FabricObserver as Admin on Windows. See ApplicationManifest_Modified.xml in source folder. For Linux, we solved this problem by implementing a Capabilities-laced binary that can only run one command as root, so FabricObserver itself will run as standard user on Linux. Windows does not have anything like Linux's Capabilities model, so it seems that running FO as Admin is the only recourse for Windows deployments.**  
+**Note: ContainerObserver must be hosted in an elevated FabricObserver process on Windows. When you build this project, the related SF configuration files will be set to run FabricObserver as Admin on Windows. See ApplicationManifest_Modified.xml in source folder. 
+For Linux, we solved this problem by implementing a Capabilities-laced binary that can only run one command as root, so FabricObserver itself will run as standard user on Linux. Windows does not have anything like Linux's Capabilities model, 
+so it seems that running FO as System is the only recourse for Windows deployments.**  
 
-### FabricObserver Plugin Model  
+#### Build Steps 
 
-#### Steps 
-**Note: make sure you know if .NET Core 3.1 is installed on the target server. If it is not, then you must use the SelfContained FO nuget package, else you can use FrameworkDependent FO nuget package. This is very important.** 
-
-**ContainerObserver requires Microsoft.ServiceFabricApps.FabricObserver nupkg version 3.1.8+**.  
+```ContainerObserver requires Microsoft.ServiceFabricApps.FabricObserver nupkg version 3.1.8+**.```
 
 - Install [.Net Core 3.1](https://dotnet.microsoft.com/download/dotnet-core/3.1) if you haven't already.
-- Clone repo.
+- Clone the repo.
+- Install the FO nupkg into the ContainerObserver project by PackageReference in ContainerObserver.csproj. By Default, it will install the Windows SelfContained package from nuget.org. 
+  For Linux, just reference the Linux SelfContained package and change the RuntimeIdentifier in ContainerObserver.csproj to linux-x64. All of the packages are Microsoft-signed. 
+  NOTE: Unless you have already installed .NET Core 3.1.x on the target server, you must reference the SelfContained nuget package for the desired OS platform.
 - Update the ContainerObserver appTarget and CPU/Mem threshold values in the [containerobserver.config.json](/ContainerObserver/containerobserver.config.json) file. 
+- Build.
 
-Note that you can supply 
+ContainerObserver only monitors two metrics: container process CPU use (%) and process private memory use (MB). ContainerObserver is designed to work on both Windows and Linux OS platforms. 
+
+If you are going to deploy FabricObserver (with ContainerObserver onboard, of course) to Linux cluster, then you *really* should change the value of the EntryPointType attribute 
+of the RunAsPolicy element in ApplicationManifest_Modified.xml to "Setup":  
+
+```XML
+    <Policies>
+      <RunAsPolicy CodePackageRef="Code" UserRef="SystemUser" EntryPointType="Setup" />
+    </Policies>
+```
+This means that only the setup code can run as root and not the FabricObserver binary. 
+
+
+#### Configuration  
+
+
+For configuration, housed in containerobserver.config.json, you can supply 
  
  ```JSON 
  "targetApp":"*",
@@ -39,13 +58,8 @@ setting which means all container app targets. You can then filter which apps to
 You choose how you want to filter the app target collection. This makes it really easy to specify the same settings for multiple apps. Also, if you supply specific app settings as well that include different values for the same settings supplied in the all-apps config, then the specific ones will override the global ones and the global settings not specified in the specific app target sections will be applied to the specific app targets. 
 
 - Update ContainerObserver basic settings in [ApplicationManifest_Modified.xml](/ContainerObserver/ApplicationManifest_Modified.xml) (this will be renamed to ApplicationManifest.xml and copied to correct location during post-build event step). Also, update ApplicationManifest_Modified.xml's ApplicationTypeVersion and ServiceManifestVersion to match that of the FabricObserver nupkg you're using, and the parameters for any other observer you care about since you will be deploying FabricObserver with your plugin in place.
-**NOTE: For linux deployments, you must modify ContainerObserver.csproj to build linux-x64 (&lt;RuntimeIdentifier&gt;linux-x64&lt;/RuntimeIdentifier&gt;) also add the following to ApplicationManifest_Modified.xml**: 
-```xml
-    </ConfigOverrides>
-    <Policies>
-      <RunAsPolicy CodePackageRef="Code" UserRef="SystemUser" EntryPointType="Setup" />
-    </Policies>
-```
+**NOTE: For linux deployments, you must modify ContainerObserver.csproj to build linux-x64 (&lt;RuntimeIdentifier&gt;linux-x64&lt;/RuntimeIdentifier&gt;). 
+
 - Build the ContainerObserver project.
 - Deploy FabricObserver to your cluster. Your new observer will be managed and run just like any other observer.
 
@@ -134,7 +148,7 @@ Example script:
 
 ```Powershell
 $path = "[sourcedir]\ContainerObserver\bin\Debug\netstandard2.0\[win-x64 or linux-x64, depending on your OS target]"
-Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3110 -TimeoutSec 1800
-Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3110
-New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.1.10
+Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3112 -TimeoutSec 1800
+Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3112
+New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.1.12
 ```
