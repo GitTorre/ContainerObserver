@@ -1,4 +1,4 @@
-# ContainerObserver (FO 3.1.13 Tested)
+# ContainerObserver (FO 3.1.14 Tested)
 
 This is an implementation of a [FabricObserver](https://aka.ms/sf/fabricobserver) plugin, built as a .NET Standard 2.0 library, that monitors dockerd-hosted Service Fabric app container instances for CPU and Memory use. It demonstrates how to write FabricObserver plugins that extend FabricObserver's capabilities and then deploy FO to your cluster from the plugin build output directory (which is effectively a decompressed sfpkg). You can learn more about the FabricObserver plugin model [here](https://github.com/microsoft/service-fabric-observer/tree/master/SampleObserverPlugin) and [here](https://github.com/microsoft/service-fabric-observer/blob/master/Documentation/Plugins.md).
 
@@ -19,7 +19,8 @@ so it seems that running FO as System is the only recourse for Windows deploymen
 - Clone the repo.
 - Install the FO nupkg into the ContainerObserver project by PackageReference in ContainerObserver.csproj. By Default, it will install the Windows SelfContained package from nuget.org. 
   For Linux, just reference the Linux SelfContained package and change the RuntimeIdentifier in ContainerObserver.csproj to linux-x64. All of the packages are Microsoft-signed. 
-  NOTE: Unless you have already installed .NET Core 3.1.x on the target server, you must reference the SelfContained nuget package for the desired OS platform.
+  NOTE: Unless you have already installed .NET Core 3.1.x on the target server, you must reference the SelfContained nuget package for the desired OS platform. 
+  **If you add new packages to this project to extend capabilities, then, as always, you must place ALL related dependencies into the same folder as ContainerObserver.dll. You can create a new folder under Plugins directory (say, ContainerObserver) and place plugin dll and its dependencies there if you deploy multiple FO plugins, for example.**
 - Update the ContainerObserver appTarget and CPU/Mem threshold values in the [containerobserver.config.json](/ContainerObserver/containerobserver.config.json) file. 
 - Build.
 
@@ -150,6 +151,6 @@ Example script:
 ```Powershell
 $path = "[sourcedir]\ContainerObserver\bin\Debug\netstandard2.0\[win-x64 or linux-x64, depending on your OS target]"
 Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3113 -TimeoutSec 1800
-Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3113
-New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.1.13
+Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3114
+New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.1.14
 ```
