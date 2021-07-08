@@ -68,6 +68,11 @@ namespace FabricObserver.Observers
 
             foreach (var app in deployedTargetList)
             {
+                if (!ReplicaOrInstanceList.Any(rep => rep.ApplicationName.OriginalString == app.TargetApp))
+                {
+                    continue;
+                }
+
                 foreach (var repOrInst in ReplicaOrInstanceList.Where(rep => rep.ApplicationName.OriginalString == app.TargetApp))
                 {
                     string serviceName = repOrInst.ServiceName.OriginalString.Replace(app.TargetApp, "").Replace("/", "");
@@ -353,10 +358,11 @@ namespace FabricObserver.Observers
                 }
             }
 
-            foreach (var app in deployedTargetList)
+            foreach (var rep in ReplicaOrInstanceList)
             {
                 token.ThrowIfCancellationRequested();
-                ObserverLogger.LogInfo($"Will observe container instance resource consumption by {app.TargetApp} on Node {NodeName}.");
+
+                ObserverLogger.LogInfo($"Will observe container instance resource consumption by {rep.ServiceName.OriginalString} on Node {NodeName}.");
             }
 
             return true;
@@ -470,6 +476,11 @@ namespace FabricObserver.Observers
                             {
                                 Token.ThrowIfCancellationRequested();
 
+                                if (line.Contains("CPU"))
+                                {
+                                    continue;
+                                }
+
                                 string[] stats = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
                                 // Something went wrong if the collection size is less than 4 given the supplied output table format:
@@ -488,12 +499,15 @@ namespace FabricObserver.Observers
                                 containerId = stats[0];
                                 repOrInst.ContainerId = containerId;
 
+                                ObserverLogger.LogInfo($"cpu: {stats[2]}");
+                                ObserverLogger.LogInfo($"mem: {stats[3]}");
+
                                 // CPU (%)
-                                double cpu_percent = double.Parse(stats[2].Replace("%", ""));
+                                double cpu_percent = double.TryParse(stats[2].Replace("%", ""), out double cpuPerc) ? cpuPerc : 0;
                                 allCpuDataPercentage?.FirstOrDefault(f => f.Id == cpuId)?.Data.Add(cpu_percent);
 
                                 // Memory (MiB)
-                                double mem_working_set_mb = double.Parse(stats[3].Replace("MiB", ""));
+                                double mem_working_set_mb = double.TryParse(stats[3].Replace("MiB", ""), out double memMib) ? memMib : 0;
                                 allMemDataMB?.FirstOrDefault(f => f.Id == memId)?.Data.Add(mem_working_set_mb);
 
                                 await Task.Delay(150, Token);
@@ -543,7 +557,7 @@ namespace FabricObserver.Observers
 
                 switch (deployedReplica)
                 {
-                    case DeployedStatefulServiceReplica statefulReplica when statefulReplica.ReplicaRole == ReplicaRole.Primary:
+                    case DeployedStatefulServiceReplica statefulReplica when statefulReplica.ReplicaRole == ReplicaRole.Primary || statefulReplica.ReplicaRole == ReplicaRole.ActiveSecondary:
                     {
                         replicaInfo = new ReplicaOrInstanceMonitoringInfo()
                         {
@@ -597,6 +611,12 @@ namespace FabricObserver.Observers
                         break;
                     }
                 }
+
+                if (replicaInfo == null)
+                {
+                    continue;
+                }
+
                 ReplicaOrInstanceList.Add(replicaInfo);
             }
         }
