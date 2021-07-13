@@ -150,7 +150,7 @@ Example script:
 
 ```Powershell
 $path = "[sourcedir]\ContainerObserver\bin\Debug\netstandard2.0\[win-x64 or linux-x64, depending on your OS target]"
-Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3113 -TimeoutSec 1800
-Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3114
-New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.1.14
+Copy-ServiceFabricApplicationPackage -ApplicationPackagePath $path -CompressPackage -ApplicationPackagePathInImageStore FabricObserverV3115 -TimeoutSec 1800
+Register-ServiceFabricApplicationType -ApplicationPathInImageStore FabricObserverV3115
+New-ServiceFabricApplication -ApplicationName fabric:/FabricObserver -ApplicationTypeName FabricObserverType -ApplicationTypeVersion 3.1.15
 ```
