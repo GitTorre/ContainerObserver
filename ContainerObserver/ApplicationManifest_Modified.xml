@@ -81,8 +81,11 @@
     <Parameter Name="AppObserverUseCircularBuffer" DefaultValue="false" />
     <!-- Required-If UseCircularBuffer = true -->
     <Parameter Name="AppObserverResourceUsageDataCapacity" DefaultValue="" />
-    <!-- Max number of a service process's spawned (child) processes to monitor. -->
-    <Parameter Name="AppObserverMaxChildProcessesToMonitor" DefaultValue="15" />
+    <!-- Configuration file name. -->
+    <Parameter Name="AppObserverConfigurationFile" DefaultValue="AppObserver.config.json" />
+    <!-- Process family tree monitoring. -->
+    <Parameter Name="AppObserverEnableChildProcessMonitoring" DefaultValue="true" />
+    <Parameter Name="AppObserverMaxChildProcTelemetryDataCount" DefaultValue="5" />
 
     <!-- CertificateObserver-->
     <!-- Cluster and App Certs Warning Start (Days) -> Default is 42 -->
@@ -92,6 +95,9 @@
     <Parameter Name="AppCertThumbprintsToObserve" DefaultValue="[]" />
     <Parameter Name="AppCertCommonNamesToObserve" DefaultValue="[]" />
 
+    <!-- ContainerObserver -->
+    <Parameter Name="ContainerObserverConfigurationFile" DefaultValue="containerobserver.config.json" />
+    
     <!-- Disk Observer Warning/Error Thresholds -->
     <Parameter Name="DiskSpacePercentUsageWarningThreshold" DefaultValue="85" />
     <Parameter Name="DiskSpacePercentUsageErrorThreshold" DefaultValue="" />
@@ -139,14 +145,11 @@
     <Parameter Name="NodeObserverLinuxFileHandlesErrorLimitTotal" DefaultValue="" />
     <Parameter Name="NodeObserverLinuxFileHandlesWarningLimitTotal" DefaultValue="" />
 
+    <!-- NetworkObserver -->
+    <Parameter Name="NetworkObserverConfigurationFile" DefaultValue="NetworkObserver.config.json" />
+    
     <!-- OSObserver Windows AutoUpdate Settings Check -->
     <Parameter Name="OSObserverEnableWindowsAutoUpdateCheck" DefaultValue="true" />
-
-    <!-- Observers with JSON config - File names.
-         You can point to a different, existing file name in PackageRoot's Config, for example. -->
-    <Parameter Name="AppObserverConfigurationFile" DefaultValue="AppObserver.config.json" />
-    <Parameter Name="ContainerObserverConfigurationFile" DefaultValue="containerobserver.config.json" />
-    <Parameter Name="NetworkObserverConfigurationFile" DefaultValue="NetworkObserver.config.json" />
   </Parameters>
   <!-- Import the ServiceManifest from the ServicePackage. The ServiceManifestName and ServiceManifestVersion 
        should match the Name and Version attributes of the ServiceManifest element defined in the 
@@ -169,7 +172,8 @@
             <Parameter Name="UseCircularBuffer" Value="[AppObserverUseCircularBuffer]" />
             <!-- Required-If UseCircularBuffer = True -->
             <Parameter Name="ResourceUsageDataCapacity" Value="[AppObserverResourceUsageDataCapacity]" />
-            <Parameter Name="MaxChildProcessesToMonitor" Value="[AppObserverMaxChildProcessesToMonitor]" />
+            <Parameter Name="EnableChildProcessMonitoring" Value="[AppObserverEnableChildProcessMonitoring]" />
+            <Parameter Name="MaxChildProcTelemetryDataCount" Value="[AppObserverMaxChildProcTelemetryDataCount]" />
           </Section>
           <Section Name="CertificateObserverConfiguration">
             <Parameter Name="Enabled" Value="[CertificateObserverEnabled]" />
