@@ -1,9 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <Settings xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.microsoft.com/2011/01/fabric">
   <Section Name="ObserverManagerConfiguration">
-    <!-- Required: Amount of time, in seconds, to sleep before the next iteration of observers run loop. 
-         0 means run continuously with no pausing. ***NOTE: If you only enable one observer, you really should set this to a number greater than 0.***
-         SF Error/Warning Reports have TTLs that are computed in part with this value. -->
+    <!-- Required: Amount of time, in seconds, for FO to sleep before the next iteration of the sequential observers run loop. 
+         0 means run continuously with no pausing - not recommended. If you only enable one observer, FO will sleep for 10 seconds between runs, regardless
+         of this setting. SF Error/Warning Reports have TTLs that are computed in part with this value. -->
     <Parameter Name="ObserverLoopSleepTimeSeconds" Value="30" />
 
     <!-- Required: Amount of time, in seconds, any observer is allowed to complete a run. If this time is exceeded, 
@@ -40,21 +40,20 @@
     <Parameter Name="FQDN" Value="" />
 
     <!-- Optional: Maximum Number of days to store Archived observer log files on disk. 
-         This setting spans all Observer Logger instances (ObserverBase.ObserverLogger), including plugins and ObserverManager. 
+         This setting spans all ObserverLogger instances (ObserverBase.ObserverLogger), including plugins and ObserverManager. 
          The default value is 0. An empty value or 0 means there is no lifetime constraint. They are immortal files. -->
     <Parameter Name="MaxArchivedLogFileLifetimeDays" Value="3" />
 
-    <!-- Optional: Maximum Number of days to store CSV files on disk, which are produced by DataLogger instances (ObserverBase.CsvLogger). 
-         This setting spans all file loggers for observers (including plugins) and ObserverManager. 
-         The default value is 0. An empty value or 0 means there is no lifetime constraint. They are immortal files. 
-         Note: For csv files, since they are produced (and stored individually) for each configured metric reading on each entity 
-         by a supported observer (AppObserver, FabricSystemObserver or NodeObserver only), there will be a lot of these files produced depending upon your 
-         RunInterval setting for supported observer. -->
+    <!-- Optional: Maximum Number of days to store CSV files on disk, which are produced by CsvFileLogger instances (ObserverBase.CsvFileLogger). 
+         This setting spans all CsvFileLogger instances for observers (including plugins) and ObserverManager. 
+         The default value is 0. An empty value or 0 means there is no lifetime constraint. They are immortal files. -->
     <Parameter Name="MaxArchivedCsvFileLifetimeDays" Value="1" />
 
     <!-- Optional: How do you want to store csv files per observer run? Default is SingleFileWithArchives which means write to a single file that is updated per run and archived after 1 day. 
          The other option, MultipleFilesNoArchives means files are written per run per monitor target (so, one file for each service process that you are monitoring, for example, 
-         time-stamped (Utc), per observer run. Note that in either case, files will remain on disk for the number of days specified in MaxArchivedCsvFileLifetimeDays. -->
+         time-stamped (Utc), per observer run. For MultipleFilesNoArchives, since each run produces a file for each entity target (like a service process monitored by AppObserver, which can 10s or 100s)  
+         by a supported observer (AppObserver, FabricSystemObserver or NodeObserver only), there will be a lot of these files produced depending upon your 
+         RunInterval setting for supported observer. Note that in either case, files will remain on disk for the number of days specified in MaxArchivedCsvFileLifetimeDays. -->
     <Parameter Name="CsvFileWriteFormat" Value="SingleFileWithArchives" />
 
     <!-- Required: Diagnostic Telemetry. Azure ApplicationInsights and Azure LogAnalytics support is already implemented, 
@@ -89,6 +88,10 @@
 
     <!-- Optional: If you deploy the FabricObserverWebApi app, set this to true.-->
     <Parameter Name="ObserverWebApiEnabled" Value="false" />
+
+    <!-- If an observer run fails due to timeout (ObserverExecutionTimeout is exceeded), then put FO into Warning or Error state.
+         Supported values are Error, Warning or None (which means don't put FO into Warning or Error state..).-->
+    <Parameter Name="ObserverFailureHealthStateLevel" Value="Warning" />
   </Section>
 
   <!-- Observer Configuration Settings - *NOTE*: These are overridable settings, see ApplicationManifest.xml. 
@@ -138,18 +141,29 @@
          It just depends upon how much data you are collecting per observer run and if you only care about
          the most recent data (where number of most recent items in collection 
          type equals the ResourceUsageDataCapacity you specify). -->
-    <Parameter Name="UseCircularBuffer" Value="" MustOverride="true"/>
+    <Parameter Name="UseCircularBuffer" Value="" MustOverride="true" />
 
     <!-- Required-If UseCircularBuffer = True: This represents the number of items to hold in the data collection instance for
          the observer. The default value for capacity is 30 if you omit the ResourceUsageDataCapacity parameter or use an invalid value
          like 0 or a negative number (or omit the parameter altogether). -->
-    <Parameter Name="ResourceUsageDataCapacity" Value="" MustOverride="true"/>
+    <Parameter Name="ResourceUsageDataCapacity" Value="" MustOverride="true" />
     <!-- AppObserver will automatically monitor a service process's descendants (max depth = 5, max procs = 50). You should only disable this if you know the services
          that you want AppObserver to monitor do not launch child processes. -->
     <Parameter Name="EnableChildProcessMonitoring" Value ="" MustOverride="true" />
     <!-- Max number of a service process's spawned (child) processes to report via telemetry (ordered by descending value - so, top n consumers).
          The recommended value range for this setting is 5 to 10. See Observers.md for more details on AppObserver's child process monitoring. -->
-    <Parameter Name="MaxChildProcTelemetryDataCount" Value="" MustOverride="true"/>
+    <Parameter Name="MaxChildProcTelemetryDataCount" Value="" MustOverride="true" />
+    <!-- dumpProcessOnError related configuration. -->
+    <!-- This setting will override dumpProcessOnError in AppObserver.config.json. This is a big red button to disable/enable the feature 
+         without having to deploy a new json config file for AppObserver as part of a configuration update or App redeployment. This feature will only work
+         if you have "dumpProcessOnError"=true setting for your app target(s) in AppObserver.config.json. 
+         AppObserver's dumpProcessOnError feature is currently only supported for Windows. -->
+    <Parameter Name="EnableProcessDumps" Value="" MustOverride="true" />
+    <!-- Supported values are: Mini, MiniPlus, Full. Default is MiniPlus. Full can create giant files - be careful there.. -->
+    <Parameter Name="DumpType" Value="" MustOverride="true" />
+    <!-- The maximum number of dumps per day per service process per metric. Default is 3. -->
+    <Parameter Name="MaxDumps" Value="" MustOverride="true" />
+    <Parameter Name="MaxDumpsTimeWindow" Value="" MustOverride="true" />
   </Section>
   <Section Name="CertificateObserverConfiguration">
     <Parameter Name="Enabled" Value="" MustOverride="true" />
@@ -176,7 +190,6 @@
     <Parameter Name="EnableTelemetry" Value="" MustOverride="true" />
     <Parameter Name="EnableEtw" Value="" MustOverride="true" />
     <Parameter Name="EnableVerboseLogging" Value="" MustOverride="true" />
-    <Parameter Name="MonitorDuration" Value="" MustOverride="true" />
     <Parameter Name="RunInterval" Value="" MustOverride="true" />
     <Parameter Name="DiskSpacePercentUsageWarningThreshold" Value="" MustOverride="true" />
     <Parameter Name="DiskSpacePercentUsageErrorThreshold" Value="" MustOverride="true" />
@@ -276,6 +289,30 @@
     <Parameter Name="ClusterOperationTimeoutSeconds" Value="120" />
     <Parameter Name="RunInterval" Value="" MustOverride="true" />
   </Section>
+  <Section Name="AzureStorageUploadObserverConfiguration">
+    <Parameter Name="Enabled" Value="" MustOverride="true" />
+    <Parameter Name="ClusterOperationTimeoutSeconds" Value="120" />
+    <Parameter Name="EnableTelemetry" Value="" MustOverride="true" />
+    <Parameter Name="EnableEtw" Value="" MustOverride="true" />
+    <Parameter Name="EnableVerboseLogging" Value="" MustOverride="true" />
+    <Parameter Name="RunInterval" Value="" MustOverride="true" />
+    <!-- Azure Blob store container name. -->
+    <Parameter Name="BlobContainerName" Value="" MustOverride="true" />
+    <!-- For Authenticating to your Storage Account, you can either provide an encrypted ConnectionString OR an Account Name and encrypted shared access key. -->
+    <!-- This must be an encrypted string. It is not a good idea to place an unencrypted ConnectionString here. 
+         Use Invoke-ServiceFabricEncryptText PowerShell API to generate this string. 
+         See https://docs.microsoft.com/en-us/powershell/module/servicefabric/invoke-servicefabricencrypttext?view=azureservicefabricps -->
+    <Parameter Name="AzureStorageConnectionString" Value="" IsEncrypted="true" />
+    <!-- OR -->
+    <Parameter Name="AzureStorageAccountName" Value="" MustOverride="true" />
+    <!-- This must be an encrypted string. It is not a good idea to place an unencrypted key here. 
+         Use Invoke-ServiceFabricEncryptText PowerShell API to generate this string. 
+         See https://docs.microsoft.com/en-us/powershell/module/servicefabric/invoke-servicefabricencrypttext?view=azureservicefabricps -->
+    <Parameter Name="AzureStorageAccountKey" Value="" IsEncrypted="true" MustOverride="true" />
+    <!-- Compression level for dmp file. Default is Optimal. If you have limited cores, than decrease the value. 
+         Supported values are: Fastest, Optimal. Optimal creates the smallest zip files. Fastest runs for less time with non-optimal compressed size. -->
+    <Parameter Name="ZipFileCompressionLevel" Value="" MustOverride="true" />
+  </Section>
   <!-- Observer Plugin. This section must be named [your observer class name]Configuration. -->
   <Section Name="ContainerObserverConfiguration">
     <Parameter Name="Enabled" Value="" MustOverride="true" />
@@ -285,7 +322,6 @@
     <Parameter Name="EnableTelemetry" Value="" MustOverride="true" />
     <Parameter Name="EnableVerboseLogging" Value="" MustOverride="true" />
     <Parameter Name="RunInterval" Value="" MustOverride="true" />
-    <Parameter Name="MonitorDuration" Value="" MustOverride="true" />
     <Parameter Name="ConfigFileName" Value="" MustOverride="true" />
   </Section>
 </Settings>
