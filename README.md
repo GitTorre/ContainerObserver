@@ -1,7 +1,7 @@
 # ContainerObserver (For Reference Only)
 
 ## NOTE: ContainerObserver now ships with FabricObserver beginning in version 3.1.17. This repo is just for reference on how to build a FabricObserver plugin. 
-### If you cloned this repo to build your own ContainerObserver plugin, the current impl is supplied here, so you have the latest. However, if you want to ship your plugin, make sure to disable FO's ContainerObserver and add your plugin to FO as usual.
+### If you cloned this repo to build your own ContainerObserver plugin, the current impl is supplied here, so you have the latest. However, if you want to ship your plugin, make sure to disable FO's ContainerObserver and add your plugin to FO as usual. You will need to rename your plugin since ContainerObserver is reserved,
 
 This is an implementation of a [FabricObserver](https://aka.ms/sf/fabricobserver) plugin, built as a .NET Standard 2.0 library, that monitors dockerd-hosted Service Fabric app container instances for CPU and Memory use. It demonstrates how to write FabricObserver plugins that extend FabricObserver's capabilities and then deploy FO to your cluster from the plugin build output directory (which is effectively a decompressed sfpkg). You can learn more about the FabricObserver plugin model [here](https://github.com/microsoft/service-fabric-observer/tree/master/SampleObserverPlugin) and [here](https://github.com/microsoft/service-fabric-observer/blob/master/Documentation/Plugins.md).
 
