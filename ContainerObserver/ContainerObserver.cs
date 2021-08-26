@@ -1,4 +1,9 @@
-﻿using System;
+﻿// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License (MIT). See License.txt in the repo root for license information.
+// ------------------------------------------------------------
+
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -11,6 +16,7 @@ using System.Runtime.InteropServices;
 using FabricObserver.Observers.Utilities;
 using FabricObserver.Observers.MachineInfoModel;
 using System.Fabric.Description;
+using System.Fabric.Health;
 
 namespace FabricObserver.Observers
 {
@@ -33,7 +39,6 @@ namespace FabricObserver.Observers
         {
             var configSettings = new MachineInfoModel.ConfigSettings(context);
             ConfigPackagePath = configSettings.ConfigPackagePath;
-
         }
 
         // OsbserverManager passes in a special token to ObserveAsync and ReportAsync that enables it to stop this observer outside of
@@ -129,20 +134,20 @@ namespace FabricObserver.Observers
 
                     // Report -> Send Telemetry/Write ETW/Create SF Health Warnings (if threshold breach)
                     ProcessResourceDataReportHealth(
-                        cpuFrudInst,
-                        app.CpuErrorLimitPercent,
-                        app.CpuWarningLimitPercent,
-                        timeToLive,
-                        HealthReportType.Application,
-                        repOrInst);
+                                    cpuFrudInst,
+                                    app.CpuErrorLimitPercent,
+                                    app.CpuWarningLimitPercent,
+                                    timeToLive,
+                                    HealthReportType.Application,
+                                    repOrInst);
 
                     ProcessResourceDataReportHealth(
-                        memFrudInst,
-                        app.MemoryErrorLimitMb,
-                        app.MemoryWarningLimitMb,
-                        timeToLive,
-                        HealthReportType.Application,
-                        repOrInst); 
+                                    memFrudInst,
+                                    app.MemoryErrorLimitMb,
+                                    app.MemoryWarningLimitMb,
+                                    timeToLive,
+                                    HealthReportType.Application,
+                                    repOrInst);
                 }
             }
 
@@ -175,7 +180,7 @@ namespace FabricObserver.Observers
 
             if (userTargetList.Count == 0)
             {
-                ObserverLogger.LogWarning( $"Will not observe container resource consumption as no app targets have been supplied.");
+                ObserverLogger.LogWarning($"Will not observe container resource consumption as no app targets have been supplied.");
                 return false;
             }
 
@@ -234,16 +239,12 @@ namespace FabricObserver.Observers
                     {
                         continue;
                     }
-                    
+
                     if (!string.IsNullOrWhiteSpace(application.AppIncludeList) && !application.AppIncludeList.Contains(app.ApplicationName.OriginalString))
                     {
                         continue;
                     }
 
-                    // Don't create a brand new entry for an existing (specified in configuration) app target. Just update the appConfig instance with data supplied in the All or * apps config entry.
-                    // Note that if you supply a conflicting setting (where you specify a threshold for a specific app target config item and also in a global config item), then the target-specific setting will be used.
-                    // E.g., if you supply a memoryWarningLimitMb threshold for an app named fabric:/MyApp and also supply a memoryWarningLimitMb threshold for all apps ("targetApp" : "All"),
-                    // then the threshold specified for fabric:/MyApp will remain in place for that app target. So, target specificity overrides any global setting.
                     if (userTargetList.Any(a => a.TargetApp == app.ApplicationName.OriginalString))
                     {
                         var existingAppConfig = userTargetList.Find(a => a.TargetApp == app.ApplicationName.OriginalString);
@@ -282,6 +283,7 @@ namespace FabricObserver.Observers
             }
 
             int settingsFail = 0;
+            MonitoredAppCount = userTargetList.Count;
 
             foreach (var application in userTargetList)
             {
@@ -347,6 +349,8 @@ namespace FabricObserver.Observers
                 }
             }
 
+            MonitoredServiceProcessCount = ReplicaOrInstanceList.Count;
+
             foreach (var rep in ReplicaOrInstanceList)
             {
                 token.ThrowIfCancellationRequested();
@@ -373,55 +377,28 @@ namespace FabricObserver.Observers
              */
 
             int listcapacity = ReplicaOrInstanceList.Count;
-
-            if (allCpuDataPercentage == null)
-            {
-                allCpuDataPercentage = new List<FabricResourceUsageData<double>>(listcapacity);
-            }
-
-            if (allMemDataMB == null)
-            {
-                allMemDataMB = new List<FabricResourceUsageData<double>>(listcapacity);
-            }
+            allCpuDataPercentage ??= new List<FabricResourceUsageData<double>>(listcapacity);
+            allMemDataMB ??= new List<FabricResourceUsageData<double>>(listcapacity);
 
             try
             {
                 foreach (ReplicaOrInstanceMonitoringInfo repOrInst in ReplicaOrInstanceList)
                 {
-                    // This is how long each measurement sequence for each container can last.
-                    // You can set this timespan value in ApplicationManifest_Modified.xml, see ContainerObserverMonitorDuration Parameter.
-                    TimeSpan duration = TimeSpan.FromSeconds(3);
-                    int frudCapacity;
-
                     Token.ThrowIfCancellationRequested();
-
-                    if (MonitorDuration > TimeSpan.MinValue)
-                    {
-                        duration = MonitorDuration;
-                    }
-
+                    string error = string.Empty;
                     string serviceName = repOrInst.ServiceName.OriginalString.Replace(repOrInst.ApplicationName.OriginalString, "").Replace("/", "");
                     string cpuId = $"{serviceName}_cpu";
                     string memId = $"{serviceName}_mem";
                     string containerId = string.Empty;
 
-                    if (UseCircularBuffer)
-                    {
-                        frudCapacity = DataCapacity > 0 ? DataCapacity : 5;
-                    }
-                    else
-                    {
-                        frudCapacity = (int)duration.TotalSeconds * 4;
-                    }
-
                     if (!allCpuDataPercentage.Any(frud => frud.Id == cpuId))
                     {
-                        allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId, frudCapacity, UseCircularBuffer));
+                        allCpuDataPercentage.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalCpuTime, cpuId, 1));
                     }
 
                     if (!allMemDataMB.Any(frud => frud.Id == memId))
                     {
-                        allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId, frudCapacity, UseCircularBuffer));
+                        allMemDataMB.Add(new FabricResourceUsageData<double>(ErrorWarningProperty.TotalMemoryConsumptionMb, memId, 1));
                     }
 
                     var monitorTimer = Stopwatch.StartNew();
@@ -446,64 +423,126 @@ namespace FabricObserver.Observers
                         WindowStyle = ProcessWindowStyle.Hidden,
                         RedirectStandardInput = false,
                         RedirectStandardOutput = true,
-                        RedirectStandardError = false,
+                        RedirectStandardError = true
                     };
 
-                    using (Process p = Process.Start(ps))
+                    using Process p = new Process();
+
+                    // Capture any error information from docker.
+                    p.ErrorDataReceived += (sender, e) => { error += e.Data; };
+                    p.StartInfo = ps;
+                    _ = p.Start();
+                    var stdOutput = p.StandardOutput;
+
+                    // Start asynchronous read operation on error stream.  
+                    p.BeginErrorReadLine();
+
+                    List<string> output = new List<string>();
+                    string l;
+
+                    while ((l = await p.StandardOutput.ReadLineAsync()) != null)
                     {
-                        List<string> output = new List<string>(frudCapacity);
-                        string l;
-
-                        while ((l = await p.StandardOutput.ReadLineAsync()) != null)
-                        {
-                            output.Add(l);
-                        }
-
-                        foreach (string line in output)
-                        {
-                            Token.ThrowIfCancellationRequested();
-
-                            if (line.Contains("CPU"))
-                            {
-                                continue;
-                            }
-
-                            string[] stats = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-                            // Something went wrong if the collection size is less than 4 given the supplied output table format:
-                            // {{.Container}}\t{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}
-                            if (stats.Length < 4)
-                            {
-                                ObserverLogger.LogWarning($"docker stats not returning expected information: stats.Count = {stats.Length}. Expected 4.");
-                                return;
-                            }
-
-                            if (!stats[1].Contains(repOrInst.ServicePackageActivationId))
-                            {
-                                continue;
-                            }
-
-                            containerId = stats[0];
-                            repOrInst.ContainerId = containerId;
-
-                            ObserverLogger.LogInfo($"cpu: {stats[2]}");
-                            ObserverLogger.LogInfo($"mem: {stats[3]}");
-
-                            // CPU (%)
-                            double cpu_percent = double.TryParse(stats[2].Replace("%", ""), out double cpuPerc) ? cpuPerc : 0;
-                            allCpuDataPercentage?.FirstOrDefault(f => f.Id == cpuId)?.Data.Add(cpu_percent);
-
-                            // Memory (MiB)
-                            double mem_working_set_mb = double.TryParse(stats[3].Replace("MiB", ""), out double memMib) ? memMib : 0;
-                            allMemDataMB?.FirstOrDefault(f => f.Id == memId)?.Data.Add(mem_working_set_mb);
-
-                            await Task.Delay(150, Token);
-                        }
-
-                        output.Clear();
-                        output = null;
-                        
+                        output.Add(l);
                     }
+
+                    p.WaitForExit();
+
+                    int exitStatus = p.ExitCode;
+                    stdOutput.Close();
+
+                    if (exitStatus != 0)
+                    {
+                        // there was an error associated with the non-zero exit code. Log it and throw.
+                        string msg = $"docker stats --no-stream exited with {exitStatus}: {error}";
+                        ObserverLogger.LogWarning(msg);
+
+                        var healthReport = new Utilities.HealthReport
+                        {
+                            AppName = new Uri($"fabric:/{ObserverConstants.FabricObserverName}"),
+                            EmitLogEvent = EnableVerboseLogging,
+                            HealthMessage = msg + " " + "NOTE: You must run FabricObserver as System user or Admin user in order for ContainerObserver to function correctly.",
+                            HealthReportTimeToLive = GetHealthReportTimeToLive(),
+                            Property = "docker_stats_failure",
+                            ReportType = HealthReportType.Application,
+                            State = HealthState.Warning,
+                            NodeName = NodeName,
+                            Observer = ObserverName,
+                        };
+
+                        // Generate a Service Fabric Health Report.
+                        HealthReporter.ReportHealthToServiceFabric(healthReport);
+
+                        // Send Health Report as Telemetry event (perhaps it signals an Alert from App Insights, for example.).
+                        if (IsTelemetryEnabled)
+                        {
+                            _ = TelemetryClient?.ReportHealthAsync(
+                                                       "docker_stats_failure",
+                                                       HealthState.Warning,
+                                                       msg,
+                                                       ObserverName,
+                                                       Token);
+                        }
+
+                        // ETW.
+                        if (IsEtwEnabled)
+                        {
+                            ObserverLogger.LogEtw(
+                                            ObserverConstants.FabricObserverETWEventName,
+                                            new
+                                            {
+                                                Property = "docker_stats_failure",
+                                                Level = "Warning",
+                                                Message = msg,
+                                                ObserverName
+                                            });
+                        }
+
+                        return;
+                    }
+
+                    foreach (string line in output)
+                    {
+                        Token.ThrowIfCancellationRequested();
+
+                        if (line.Contains("CPU"))
+                        {
+                            continue;
+                        }
+
+                        string[] stats = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                        // Something went wrong if the collection size is less than 4 given the supplied output table format:
+                        // {{.Container}}\t{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}
+                        if (stats.Length < 4)
+                        {
+                            ObserverLogger.LogWarning($"docker stats not returning expected information: stats.Count = {stats.Length}. Expected 4.");
+                            return;
+                        }
+
+                        if (!stats[1].Contains(repOrInst.ServicePackageActivationId))
+                        {
+                            continue;
+                        }
+
+                        containerId = stats[0];
+                        repOrInst.ContainerId = containerId;
+
+                        ObserverLogger.LogInfo($"cpu: {stats[2]}");
+                        ObserverLogger.LogInfo($"mem: {stats[3]}");
+
+                        // CPU (%)
+                        double cpu_percent = double.TryParse(stats[2].Replace("%", ""), out double cpuPerc) ? cpuPerc : 0;
+                        allCpuDataPercentage?.FirstOrDefault(f => f.Id == cpuId)?.Data.Add(cpu_percent);
+
+                        // Memory (MiB)
+                        double mem_working_set_mb = double.TryParse(stats[3].Replace("MiB", ""), out double memMib) ? memMib : 0;
+                        allMemDataMB?.FirstOrDefault(f => f.Id == memId)?.Data.Add(mem_working_set_mb);
+
+                        await Task.Delay(150, Token);
+                    }
+
+                    output.Clear();
+                    output = null;
                 }
             }
             catch (Exception e) when (!(e is OperationCanceledException || e is TaskCanceledException))
@@ -541,8 +580,8 @@ namespace FabricObserver.Observers
 
                 switch (deployedReplica)
                 {
-                    case DeployedStatefulServiceReplica statefulReplica when statefulReplica.ReplicaRole == ReplicaRole.Primary || statefulReplica.ReplicaRole == ReplicaRole.ActiveSecondary:
-                    {
+                    case DeployedStatefulServiceReplica statefulReplica when statefulReplica.ReplicaRole == ReplicaRole.Primary:
+
                         replicaInfo = new ReplicaOrInstanceMonitoringInfo()
                         {
                             ApplicationName = appName,
@@ -565,11 +604,10 @@ namespace FabricObserver.Observers
                                     continue;
                             }
                         }
-
                         break;
-                    }
+
                     case DeployedStatelessServiceInstance statelessInstance:
-                    {
+
                         replicaInfo = new ReplicaOrInstanceMonitoringInfo()
                         {
                             ApplicationName = appName,
@@ -593,7 +631,6 @@ namespace FabricObserver.Observers
                             }
                         }
                         break;
-                    }
                 }
 
                 if (replicaInfo == null)
